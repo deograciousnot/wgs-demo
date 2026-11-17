@@ -31,9 +31,12 @@
   const catOf = (id) => CATS.find((c) => c.id === id) || CATS[0];
   const pkgLabel = (p) => p.name || `${fmt(p.cp + (p.bonus || 0))} CP`;
   const pkgLong = (p) => p.name || `${fmt(p.cp)}${p.bonus ? " + " + fmt(p.bonus) : ""} CP`;
-  const TZS_PER_KES = 20;
-  const toKES = (o) => o.cty === "TZ" ? o.amt / TZS_PER_KES : o.amt;
+  // Money: each sale keeps the currency it was paid in. Totals can be shown in KSH or TSH using his own rate.
+  let rate = 20;            // TSH per 1 KSH, editable on the overview
+  let cur = "KES";          // currency for combined totals
+  const toKES = (o) => o.cty === "TZ" ? o.amt / rate : o.amt;
   const money = (o) => `${o.cty === "TZ" ? "TSH" : "KSH"} ${fmt(o.amt)}`;
+  const mny = (kes) => cur === "KES" ? `KSH ${fmt(kes)}` : `TSH ${fmt(kes * rate)}`;   // combined total, shown in the chosen currency
 
   /* ── history: 4–16 Nov are fixed sample days; today (17 Nov) is built from the orders list ── */
   const START = new Date("2026-11-04T00:00:00");
@@ -73,16 +76,22 @@
   function todayStats() {
     const site = todayOrders().filter((o) => o.src === "site");
     const done = todayOrders().filter((o) => o.status === "done");
-    return { visits: visits[TODAY_I], taps: site.length, bought: done.length, nosale: site.filter((o) => o.status === "nosale").length, waiting: site.filter((o) => o.status === "new").length, rev: sum(done.map(toKES)) };
+    const ke = sum(done.filter((o) => o.cty !== "TZ").map((o) => o.amt)), tz = sum(done.filter((o) => o.cty === "TZ").map((o) => o.amt));
+    return { visits: visits[TODAY_I], taps: site.length, bought: done.length, nosale: site.filter((o) => o.status === "nosale").length, waiting: site.filter((o) => o.status === "new").length, ke, tz, rev: ke + tz / rate };
   }
+  // Past days: about 85% of value paid in KSH, 15% in TSH (sample split). Stored in the currency actually received.
+  const pastKE = pastBought.map((b, i) => Math.round(b * avgSale[i] * .85 / 50) * 50);
+  const pastTZ = pastBought.map((b, i) => Math.round(b * avgSale[i] * .15 * 20 / 1000) * 1000);
   function series() {
     const t = todayStats();
+    const ke = [...pastKE, t.ke], tz = [...pastTZ, t.tz];
     return {
       taps: [...pastTaps, t.taps], bought: [...pastBought, t.bought],
       nosale: [...pastTaps.map((x, i) => x - pastBought[i]), t.nosale],
-      rev: [...pastBought.map((b, i) => b * avgSale[i]), t.rev]
+      ke, tz, rev: ke.map((k, i) => k + tz[i] / rate)
     };
   }
+  const recv = (ke, tz) => `<span class="recv">received <b>KSH ${fmt(ke)}</b> + <b>TSH ${fmt(tz)}</b></span>`;
 
   /* ── tabs ── */
   function show(tab) {
@@ -95,13 +104,22 @@
 
   /* ── overview ── */
   let range = 7;
-  $$(".range button").forEach((b) => {
+  $$(".range button[data-range]").forEach((b) => {
     b.setAttribute("aria-pressed", Number(b.dataset.range) === range);
     b.addEventListener("click", () => {
       range = Number(b.dataset.range);
-      $$(".range button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+      $$(".range button[data-range]").forEach((x) => x.setAttribute("aria-pressed", x === b));
       renderOverview();
     });
+  });
+  $$(".range button[data-cur]").forEach((b) => b.addEventListener("click", () => {
+    cur = b.dataset.cur;
+    $$(".range button[data-cur]").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    renderOverview(); renderSales();
+  }));
+  $("#rate").addEventListener("change", (e) => {
+    const r = Number(String(e.target.value).replace(/[^\d.]/g, ""));
+    if (r > 0) { rate = r; renderOverview(); renderSales(); toast(`Rate set: 1 KSH = ${fmt(rate)} TSH`); } else e.target.value = rate;
   });
   const pct = (cur, prev) => {
     if (!prev) return "";
@@ -113,10 +131,10 @@
     const t = todayStats(), s = series(), y = TODAY_I - 1;
     const hour = NOW.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
     $("#today-date").textContent = `Tue 17 Nov · up to ${hour} · arrows compare with yesterday`;
-    const cell = (label, v, prev, money) => `<div><p>${label}</p><b>${money ? "KSH " : ""}${fmt(v)}</b><small>${pct(v, prev)} yesterday ${money ? "KSH " : ""}${fmt(prev)}</small></div>`;
+    const cell = (label, v, prev, isMoney, extra = "") => `<div><p>${label}</p><b>${isMoney ? mny(v) : fmt(v)}</b><small>${pct(v, prev)} yesterday ${isMoney ? mny(prev) : fmt(prev)}</small>${extra}</div>`;
     $("#today").innerHTML =
       cell("Visitors", t.visits, visits[y]) + cell("Order taps", t.taps, s.taps[y]) +
-      cell("Bought", t.bought, s.bought[y]) + cell("Revenue", t.rev, s.rev[y], true);
+      cell("Bought", t.bought, s.bought[y]) + cell("Revenue", t.rev, s.rev[y], true, recv(t.ke, t.tz));
   }
 
   function renderOverview() {
@@ -129,7 +147,8 @@
     $("#k-taps").textContent = fmt(sum(T)); $("#k-taps-d").innerHTML = range === 7 ? pct(sum(T), prev(s.taps)) + vs : "last 14 days";
     $("#k-conv").textContent = Math.round(sum(B) / (sum(B) + sum(N)) * 100) + "%";
     $("#k-conv-d").textContent = `${fmt(sum(B))} bought · ${fmt(sum(N))} no sale`;
-    $("#k-rev").textContent = "KSH " + fmt(sum(R)); $("#k-rev-d").innerHTML = range === 7 ? pct(sum(R), prev(s.rev)) + vs : "last 14 days";
+    $("#k-rev").textContent = mny(sum(R));
+    $("#k-rev-d").innerHTML = (range === 7 ? pct(sum(R), prev(s.rev)) + vs : "last 14 days") + recv(sum(slice(s.ke)), sum(slice(s.tz)));
 
     const total = sum(V);
     bars("#b-pkg", [["4,000 + 4,000 CP", 92], ["800 + 800 CP", 98], ["2,000 + 2,000 CP", 71], ["8,000 + 8,000 CP", 46], ["Battle Pass", 38], ["Regular CP (all)", 33]]
@@ -137,7 +156,7 @@
     bars("#b-src", [["TikTok", .46], ["WhatsApp status", .31], ["Google", .12], ["Direct / other", .11]].map(([k, sh]) => [k, sh * total]), (x) => fmt(x));
     bars("#b-cty", [["Kenya", .78], ["Tanzania", .22]].map(([k, sh]) => [k, sh * total]), (x) => `${fmt(x)} · ${Math.round(x / total * 100)}%`);
     const wk = sum(s.rev.slice(-7));
-    bars("#b-mix", [["Double CP", .71], ["Regular CP", .18], ["Battle Pass", .11]].map(([k, sh]) => [k, sh * wk]), (x) => `KSH ${fmt(x)}`);
+    bars("#b-mix", [["Double CP", .71], ["Regular CP", .18], ["Battle Pass", .11]].map(([k, sh]) => [k, sh * wk]), (x) => mny(x));
     $("#wait-n").textContent = fmt(sum(WAIT.map((w) => w[1])));
     bars("#b-wait", WAIT, (x) => fmt(x));
     renderDaily(s);
@@ -151,7 +170,7 @@
       const d = day(i);
       rows.push(`<tr class="${i === EVENT_I ? "ev" : ""} ${i === TODAY_I ? "today" : ""}">
         <td>${i === TODAY_I ? "Today" : d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</td>
-        <td>${fmt(visits[i])}</td><td>${fmt(s.taps[i])}</td><td>${fmt(s.bought[i])}</td><td>${fmt(s.nosale[i])}</td><td>KSH ${fmt(s.rev[i])}</td></tr>`);
+        <td>${fmt(visits[i])}</td><td>${fmt(s.taps[i])}</td><td>${fmt(s.bought[i])}</td><td>${fmt(s.nosale[i])}</td><td>${mny(s.rev[i])}</td></tr>`);
     }
     $("#daily tbody").innerHTML = rows.join("");
   }
@@ -315,8 +334,8 @@
     const s = series(), wk = sum(s.rev.slice(-7));
     const split = [["M-Pesa", .72], ["Binance", .11], ["Bank", .08], ["PayPal", .06], ["Apple Pay", .03]];
     $("#week").innerHTML = `
-      <div><div class="big">KSH ${fmt(wk)}</div><div class="meta">${fmt(sum(s.bought.slice(-7)))} sales in the last 7 days · TSH counted at ${TZS_PER_KES} TSH = 1 KSH</div></div>
-      <div><p class="lbl">By payment method</p><div class="split">${split.map(([k, v]) => `<div><b>KSH ${fmt(wk * v)}</b><small>${k}</small></div>`).join("")}</div></div>`;
+      <div><div class="big">${mny(wk)}</div><div class="meta">${fmt(sum(s.bought.slice(-7)))} sales in the last 7 days · total at 1 KSH = ${fmt(rate)} TSH</div>${recv(sum(s.ke.slice(-7)), sum(s.tz.slice(-7)))}</div>
+      <div><p class="lbl">By payment method</p><div class="split">${split.map(([k, v]) => `<div><b>${mny(wk * v)}</b><small>${k}</small></div>`).join("")}</div></div>`;
   }
 
   /* ── prices (grouped by product type) ── */
@@ -384,29 +403,55 @@
     { kind: "update", title: "Double CP season is back", msg: "All four packages are doubled until 20 Dec. Orders are open now.", date: "2026-11-17", pin: true },
     { kind: "update", title: "Console & PC games are coming", msg: "Tap 'Notify me' on the shop page and we'll message you on launch day.", date: "2026-11-14" }
   ];
-  let kind = "update";
-  $$(".seg[aria-label='Post type'] button").forEach((b) => b.addEventListener("click", () => {
-    kind = b.dataset.kind;
-    $$(".seg[aria-label='Post type'] button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+  let kind = "update", editing = -1;
+  function setKind(k) {
+    kind = k;
+    $$(".seg[aria-label='Post type'] button").forEach((x) => x.setAttribute("aria-pressed", x.dataset.kind === k));
     $$(".only-update").forEach((e) => (e.hidden = kind !== "update"));
     $$(".only-drop").forEach((e) => (e.hidden = kind !== "drop"));
-  }));
+  }
+  $$(".seg[aria-label='Post type'] button").forEach((b) => b.addEventListener("click", () => setKind(b.dataset.kind)));
+  function startEdit(i) {
+    const p = posts[i]; editing = i;
+    setKind(p.kind);
+    $("#p-title").value = p.title; $("#p-msg").value = p.msg; $("#p-date").value = p.date; $("#p-pin").checked = !!p.pin;
+    $("#p-submit").textContent = "Save changes"; $("#p-cancel").hidden = false;
+    $("#post").classList.add("editing");
+    renderPosts();
+    $("#post").scrollIntoView({ behavior: "smooth", block: "start" }); $("#p-title").focus({ preventScroll: true });
+  }
+  function stopEdit() {
+    editing = -1; $("#post").reset(); $("#p-date").value = "2026-11-17"; setKind("update");
+    $("#p-submit").textContent = "Post it"; $("#p-cancel").hidden = true; $("#post").classList.remove("editing");
+    renderPosts();
+  }
+  $("#p-cancel").addEventListener("click", stopEdit);
   $("#p-date").value = "2026-11-17";
   function renderPosts() {
     $("#posts").innerHTML = posts.map((p, i) => `
-      <li>
+      <li class="${i === editing ? "is-edit" : ""}">
         ${p.img ? `<img src="${p.img}" alt="">` : `<span class="kind ${p.kind}">${p.kind === "drop" ? "Drop" : p.pin ? "📌 Pinned" : "Update"}</span>`}
-        <div><h3>${esc(p.title)}</h3><p>${esc(p.msg)}</p><p style="font-size:.78rem;margin-top:4px">${new Date(p.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p></div>
-        <div class="acts"><button class="del" data-i="${i}" type="button">Delete</button></div>
+        <div><h3>${esc(p.title)}</h3><p>${esc(p.msg)}</p><p style="font-size:.78rem;margin-top:4px">${new Date(p.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}${p.edited ? " · edited" : ""}</p></div>
+        <div class="acts">${i === editing ? '<span class="st" style="color:var(--gold)">Editing…</span>' : `<button class="edit" data-i="${i}" type="button">Edit</button><button class="del" data-i="${i}" type="button">Delete</button>`}</div>
       </li>`).join("") || '<p class="empty">No posts yet.</p>';
-    $$("#posts .del").forEach((b) => b.addEventListener("click", () => { posts.splice(b.dataset.i, 1); renderPosts(); toast("Post deleted"); }));
+    $$("#posts .edit").forEach((b) => b.addEventListener("click", () => startEdit(Number(b.dataset.i))));
+    $$("#posts .del").forEach((b) => b.addEventListener("click", () => {
+      if (!confirm(`Delete "${posts[b.dataset.i].title}"? It disappears from the shop page.`)) return;
+      posts.splice(b.dataset.i, 1); renderPosts(); toast("Post deleted");
+    }));
   }
   $("#post").addEventListener("submit", (e) => {
     e.preventDefault();
     const f = $("#p-img").files[0];
-    posts.unshift({ kind, title: $("#p-title").value.trim(), msg: $("#p-msg").value.trim(), date: $("#p-date").value || "2026-11-17", pin: kind === "update" && $("#p-pin").checked, img: kind === "drop" && f ? URL.createObjectURL(f) : "" });
-    e.target.reset(); $("#p-date").value = "2026-11-17";
-    renderPosts(); toast("Posted to the shop page ✓ (mockup)");
+    const data = { kind, title: $("#p-title").value.trim(), msg: $("#p-msg").value.trim(), date: $("#p-date").value || "2026-11-17", pin: kind === "update" && $("#p-pin").checked };
+    if (editing >= 0) {
+      const old = posts[editing];
+      posts[editing] = { ...old, ...data, img: kind === "drop" ? (f ? URL.createObjectURL(f) : old.img || "") : "", edited: true };
+      stopEdit(); toast("Changes saved. Shop page updated ✓ (mockup)");
+    } else {
+      posts.unshift({ ...data, img: kind === "drop" && f ? URL.createObjectURL(f) : "" });
+      stopEdit(); toast("Posted to the shop page ✓ (mockup)");
+    }
   });
 
   /* ── reviews ── */

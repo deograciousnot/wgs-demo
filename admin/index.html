@@ -32,9 +32,16 @@
       <section data-panel="overview">
         <header class="top">
           <div><p class="hi">Habari, boss 👋</p><h1>Overview</h1></div>
-          <div class="range" role="group" aria-label="Date range">
-            <button data-range="7" aria-pressed="false">7 days</button>
-            <button data-range="14" aria-pressed="true">14 days</button>
+          <div class="ctrls">
+            <div class="range cur" role="group" aria-label="Show money in">
+              <button data-cur="KES" aria-pressed="true">KSH</button>
+              <button data-cur="TZS" aria-pressed="false">TSH</button>
+            </div>
+            <label class="rate">1 KSH =<input id="rate" inputmode="decimal" value="20" aria-label="Tanzanian shillings per Kenyan shilling">TSH</label>
+            <div class="range" role="group" aria-label="Date range">
+              <button data-range="7" aria-pressed="false">7 days</button>
+              <button data-range="14" aria-pressed="true">14 days</button>
+            </div>
           </div>
         </header>
 
@@ -161,7 +168,10 @@
             <label class="only-update check"><input type="checkbox" id="p-pin"> Pin to top</label>
             <label class="only-drop file" hidden>Poster<input id="p-img" type="file" accept="image/*"></label>
           </div>
-          <button class="btn red" type="submit">Post it</button>
+          <div class="form-acts">
+            <button class="btn red" id="p-submit" type="submit">Post it</button>
+            <button class="btn ghost" id="p-cancel" type="button" hidden>Cancel edit</button>
+          </div>
         </form>
         <ul class="posts" id="posts"></ul>
       </section>

@@ -167,6 +167,15 @@ input[type="file"] { display: block; margin-top: 6px; font-size: .85rem; color: 
 .sub-h span { color: var(--text); }
 .empty { color: var(--muted); font-size: .9rem; padding: 6px 0; }
 
+.ctrls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rate { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: .82rem; color: var(--muted); }
+.rate input { display: inline-block !important; width: 58px !important; margin: 0 !important; padding: 6px 8px !important; text-align: center; font-size: .88rem !important; }
+.recv { display: block; margin-top: 4px; font-size: .76rem; color: var(--muted); }
+.recv b { color: var(--text); font-weight: 600; }
+.editing { box-shadow: 0 0 0 1px var(--gold); }
+.form-acts { display: flex; gap: 10px; flex-wrap: wrap; }
+.posts li.is-edit { border-color: var(--gold); }
+
 /* today strip + daily table */
 .muted { color: var(--muted); font-size: .84rem; }
 .tgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
