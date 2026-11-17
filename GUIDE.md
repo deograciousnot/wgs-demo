@@ -13,7 +13,7 @@ Edit a cell, and the site shows the change the next time someone opens it.
 ## What each tab does
 | Tab | Columns | Tips |
 |---|---|---|
-| prices | cp, bonus, kes, tzs, usd, tag, show, updated | `bonus` = extra CP during events (0 when there's no event). `tag` = "Best value", "Most popular" or blank. `show` = yes/no. Change `updated` to today's date whenever you edit prices. |
+| prices | category, name, note, cp, bonus, kes, tzs, usd, tag, uid, show, updated | `category` = double, regular or battlepass (each becomes a tab). Battle Pass rows use `name` and `note` instead of cp, and `uid` = yes so buyers enter their Player UID. `bonus` = extra CP during events (0 when there's no event). `tag` = "Best value", "Most popular" or blank. `show` = yes/no. Change `updated` to today's date whenever you edit prices. |
 | offers | title, detail, ends, show | The red banner at the top. `ends` like `2026-12-20T23:59:00Z`. It hides itself when time runs out. |
 | announcements | date, title, message, pinned | Instructions and news. `pinned` = yes keeps it on top. |
 | drops | date, title, note, image, show | Upcoming in-game stuff. `image` = a link to your own poster (optional). Past dates hide themselves. |

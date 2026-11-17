@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <p class="demo">Demo · prices, offers and announcements are edited from a Google Sheet</p>
+  <p class="demo">Demo · edited from the admin panel · regular CP &amp; Battle Pass prices are samples</p>
 
   <div class="offer" id="offer" hidden>
     <div class="wrap offer-in">
@@ -93,6 +93,7 @@
           <button type="button" data-cur="tzs" aria-pressed="false">🇹🇿 Tanzania · TSH</button>
         </div>
       </div>
+      <div class="cats" id="cats" role="tablist" aria-label="Product type"></div>
       <div class="grid" id="grid"><p class="loading">Loading prices…</p></div>
 
       <div class="order" id="order">
@@ -109,6 +110,9 @@
               <label><input type="radio" name="pay" value="Binance"><span>Binance</span></label>
             </div>
           </fieldset>
+          <label class="field uid" id="uid-field" hidden>Player UID <small>(found on your profile. It's public, so it's safe to share)</small>
+            <input id="uid" type="text" inputmode="numeric" maxlength="24" placeholder="e.g. 6743 0000 0000 0000" autocomplete="off">
+          </label>
           <label class="field">Your name <small>(so we know who's messaging)</small>
             <input id="name" type="text" autocomplete="given-name" maxlength="40" placeholder="e.g. Brian">
           </label>
@@ -191,7 +195,12 @@
       <div>
         <p class="eyebrow">Coming soon</p>
         <h2>Console &amp; PC games</h2>
-        <p>Game keys and top-ups for console and PC. Message us to get on the list for launch day.</p>
+        <p>Game keys and top-ups for console and PC. Pick your platform and we'll message you on launch day.</p>
+        <div class="plats" role="group" aria-label="Your platform">
+          <button type="button" aria-pressed="true">PlayStation</button>
+          <button type="button" aria-pressed="false">Xbox</button>
+          <button type="button" aria-pressed="false">PC</button>
+        </div>
       </div>
       <a class="btn ghost" id="soon-wa" href="#" target="_blank" rel="noopener">Notify me</a>
     </section>

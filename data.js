@@ -17,13 +17,29 @@ window.WGS = {
   buyers: "700+",                 // happy buyers counter
   delivery: "10–30 min",          // usual delivery time  (DEMO: confirm)
 
+  // Product tabs on the price list. A tab hides itself when it has no packages showing.
+  categories: [
+    { id: "double", label: "Double CP 🔥" },
+    { id: "regular", label: "Regular CP" },
+    { id: "battlepass", label: "Battle Pass" }
+  ],
+
   demo: {
-    // DEMO prices from the current double-CP price list. TZS values are estimates to confirm.
+    // DEMO: double-CP prices are from his current list. Regular CP, Battle Pass and all TZS values are SAMPLES to confirm.
+    // category = double | regular | battlepass.  uid = yes asks the buyer for their Player UID (Battle Pass needs only that).
     prices: [
-      { cp: "800",  bonus: "800",  kes: "1350",  tzs: "27000",  usd: "10", tag: "", show: "yes", updated: "2026-11-17" },
-      { cp: "2000", bonus: "2000", kes: "3500",  tzs: "70000",  usd: "27", tag: "", show: "yes", updated: "2026-11-17" },
-      { cp: "4000", bonus: "4000", kes: "6500",  tzs: "130000", usd: "50", tag: "Most popular", show: "yes", updated: "2026-11-17" },
-      { cp: "8000", bonus: "8000", kes: "12000", tzs: "240000", usd: "92", tag: "Best value", show: "yes", updated: "2026-11-17" }
+      { category: "double", cp: "800",  bonus: "800",  kes: "1350",  tzs: "27000",  usd: "10", tag: "", show: "yes", updated: "2026-11-17" },
+      { category: "double", cp: "2000", bonus: "2000", kes: "3500",  tzs: "70000",  usd: "27", tag: "", show: "yes", updated: "2026-11-17" },
+      { category: "double", cp: "4000", bonus: "4000", kes: "6500",  tzs: "130000", usd: "50", tag: "Most popular", show: "yes", updated: "2026-11-17" },
+      { category: "double", cp: "8000", bonus: "8000", kes: "12000", tzs: "240000", usd: "92", tag: "Best value", show: "yes", updated: "2026-11-17" },
+      { category: "regular", cp: "80",   bonus: "0", kes: "200",   tzs: "4000",   usd: "1.5", tag: "", show: "yes", updated: "2026-11-17" },
+      { category: "regular", cp: "400",  bonus: "0", kes: "750",   tzs: "15000",  usd: "6",   tag: "", show: "yes", updated: "2026-11-17" },
+      { category: "regular", cp: "800",  bonus: "0", kes: "1350",  tzs: "27000",  usd: "10",  tag: "", show: "yes", updated: "2026-11-17" },
+      { category: "regular", cp: "2000", bonus: "0", kes: "3500",  tzs: "70000",  usd: "27",  tag: "Popular", show: "yes", updated: "2026-11-17" },
+      { category: "regular", cp: "4000", bonus: "0", kes: "6500",  tzs: "130000", usd: "50",  tag: "", show: "yes", updated: "2026-11-17" },
+      { category: "regular", cp: "8000", bonus: "0", kes: "12000", tzs: "240000", usd: "92",  tag: "", show: "yes", updated: "2026-11-17" },
+      { category: "battlepass", name: "Battle Pass", note: "This season's premium pass", kes: "750", tzs: "15000", usd: "6", tag: "", uid: "yes", show: "yes", updated: "2026-11-17" },
+      { category: "battlepass", name: "Battle Pass Bundle", note: "Premium pass + tier skips", kes: "1950", tzs: "39000", usd: "15", tag: "Best value", uid: "yes", show: "yes", updated: "2026-11-17" }
     ],
     offers: [
       { title: "Double CP is live", detail: "Every package comes with 100% bonus CP. Event ends 20 December.", ends: "2026-12-20T23:59:00Z", show: "yes" }

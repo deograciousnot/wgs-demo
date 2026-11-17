@@ -1,7 +1,7 @@
 (() => {
   const C = window.WGS;
   const $ = (s) => document.querySelector(s);
-  const state = { cur: "kes", pkg: null, data: {} };
+  const state = { cur: "kes", pkg: null, cat: null, data: {} };
   try { state.cur = localStorage.getItem("wgs-cur") || "kes"; } catch (e) {}
 
   /* ── tiny CSV reader (handles quotes and commas inside quotes) ── */
@@ -50,26 +50,47 @@
   const wa = (text) => `https://wa.me/${C.whatsapp}?text=${encodeURIComponent(text)}`;
 
   /* ── prices ── */
+  const cats = C.categories || [{ id: "", label: "" }];
+  const shown = () => (state.data.prices || []).filter((p) => yes(p.show) || p.show === undefined);
+  const inCat = (p, id) => !id || (p.category || cats[0].id) === id;
+  const isPass = (p) => p.category === "battlepass" || !!p.name;
+  const label = (p) => isPass(p) ? (p.name || "Battle Pass") : `${num(p.cp).toLocaleString("en-US")}${num(p.bonus) ? " + " + num(p.bonus).toLocaleString("en-US") : ""} CP`;
+  const needsUid = (p) => yes(p.uid) || p.category === "battlepass";
+
+  function renderCats() {
+    const all = shown();
+    const live = cats.filter((c) => all.some((p) => inCat(p, c.id)));
+    if (!live.some((c) => c.id === state.cat)) state.cat = live.length ? live[0].id : "";
+    $("#cats").hidden = live.length < 2;
+    $("#cats").innerHTML = live.map((c) => `<button type="button" role="tab" data-c="${esc(c.id)}" aria-selected="${c.id === state.cat}">${esc(c.label)}</button>`).join("");
+    $("#cats").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+      state.cat = b.dataset.c; state.pkg = null; renderCats(); renderPrices(); updateOrder();
+    }));
+  }
+
   function renderPrices() {
     const grid = $("#grid");
-    const list = (state.data.prices || []).filter((p) => yes(p.show) || p.show === undefined);
+    const list = shown().filter((p) => inCat(p, state.cat));
+    state.list = list;
     if (!list.length) { grid.innerHTML = '<p class="loading">Prices coming soon. Message us on WhatsApp.</p>'; return; }
     grid.innerHTML = list.map((p, i) => {
       const bonus = num(p.bonus);
+      const head = isPass(p)
+        ? `<div class="pass">${esc(p.name || "Battle Pass")}</div><p class="bonus">${esc(p.note || "")}${p.note ? " · " : ""}<b>UID only</b></p>`
+        : `<div class="cp">${num(p.cp).toLocaleString("en-US")}${bonus ? ` <small>+ ${bonus.toLocaleString("en-US")}</small>` : ""}</div>
+           <p class="bonus">${bonus ? `<b>${(num(p.cp) + bonus).toLocaleString("en-US")} CP</b> total` : "CP"}</p>`;
       return `<button type="button" class="card" data-i="${i}" aria-pressed="${state.pkg === i}">
         ${p.tag ? `<span class="tag">${esc(p.tag)}</span>` : ""}
-        <div class="cp">${num(p.cp).toLocaleString("en-US")}${bonus ? ` <small>+ ${bonus.toLocaleString("en-US")}</small>` : ""}</div>
-        <p class="bonus">${bonus ? `<b>${(num(p.cp) + bonus).toLocaleString("en-US")} CP</b> total` : "CP"}</p>
+        ${head}
         <div class="price">${money(p[state.cur], state.cur)}</div>
         ${p.usd ? `<div class="usd">≈ $${esc(p.usd)}</div>` : ""}
         <span class="go">${state.pkg === i ? "Selected ✓" : "Choose"}</span>
       </button>`;
     }).join("");
     grid.querySelectorAll(".card").forEach((b) => b.addEventListener("click", () => {
-      state.pkg = Number(b.dataset.i); renderPrices(); updateOrder();
+      state.pkg = Number(b.dataset.i); state.code = newCode(); renderPrices(); updateOrder();
       if (matchMedia("(max-width: 760px)").matches) $("#order").scrollIntoView({ behavior: "smooth", block: "start" });
     }));
-    state.list = list;
   }
 
   document.querySelectorAll(".switch button").forEach((b) => {
@@ -84,21 +105,31 @@
   }
 
   /* ── order → WhatsApp ── */
+  // Each order gets a short code so the shop can match the WhatsApp chat to the order in the admin panel.
+  const newCode = () => "WGS-" + String(Math.floor(1000 + Math.random() * 9000));
+  state.code = newCode();
   function updateOrder() {
     const send = $("#send");
     const p = state.list && state.list[state.pkg];
-    if (!p) { send.setAttribute("aria-disabled", "true"); send.href = "#"; return; }
-    const total = num(p.cp) + num(p.bonus);
+    $("#uid-field").hidden = !(p && needsUid(p));
+    if (!p) { $("#pick").textContent = "Choose a package above."; send.setAttribute("aria-disabled", "true"); send.href = "#"; send.textContent = "Order on WhatsApp"; return; }
     const price = money(p[state.cur], state.cur);
-    $("#pick").innerHTML = `<b>${total.toLocaleString("en-US")} CP</b> (${esc(p.cp)} + ${esc(p.bonus || 0)} bonus) · ${esc(price)}`;
+    const total = num(p.cp) + num(p.bonus);
+    $("#pick").innerHTML = (isPass(p)
+      ? `<b>${esc(p.name || "Battle Pass")}</b>`
+      : `<b>${total.toLocaleString("en-US")} CP</b>${num(p.bonus) ? ` (${esc(p.cp)} + ${esc(p.bonus)} bonus)` : ""}`) + ` · ${esc(price)} <span class="code">#${state.code}</span>`;
     const pay = (document.querySelector('input[name="pay"]:checked') || {}).value || "M-Pesa";
     const name = $("#name").value.trim();
+    const uid = $("#uid").value.replace(/\s+/g, "");
+    if (needsUid(p) && uid.length < 6) { send.setAttribute("aria-disabled", "true"); send.href = "#"; send.textContent = "Enter your Player UID"; return; }
+    send.textContent = "Order on WhatsApp";
     const msg = [
-      `Hi WGS 👋 I'd like to order:`,
-      `• ${num(p.cp).toLocaleString("en-US")} + ${num(p.bonus).toLocaleString("en-US")} CP (${total.toLocaleString("en-US")} total)`,
+      `Hi WGS 👋 I'd like to order (#${state.code}):`,
+      `• ${label(p)}${!isPass(p) && num(p.bonus) ? ` (${total.toLocaleString("en-US")} total)` : ""}`,
       `• Price: ${price}`,
       `• Paying with: ${pay}`,
       `• Country: ${state.cur === "kes" ? "Kenya" : "Tanzania"}`,
+      needsUid(p) ? `• Player UID: ${uid}` : "",
       name ? `• Name: ${name}` : ""
     ].filter(Boolean).join("\n");
     send.href = wa(msg);
@@ -106,6 +137,9 @@
   }
   document.querySelectorAll('input[name="pay"]').forEach((r) => r.addEventListener("change", updateOrder));
   $("#name").addEventListener("input", updateOrder);
+  $("#uid").addEventListener("input", updateOrder);
+  // In the full version this tap is also recorded, so the shop gets a notification in the admin panel.
+  $("#send").addEventListener("click", () => setTimeout(() => { state.code = newCode(); updateOrder(); }, 500));
 
   /* ── offer banner + countdown ── */
   let timer;
@@ -197,7 +231,15 @@
   /* ── static bits ── */
   const hi = wa("Hi WGS 👋");
   ["#nav-wa", "#fab"].forEach((s) => ($(s).href = hi));
-  $("#soon-wa").href = wa("Hi WGS 👋 Please notify me when console & PC games launch.");
+  // "Notify me" for console & PC games. In the full version each tap is also counted on the admin waitlist.
+  const soon = () => {
+    const plat = (document.querySelector('.plats button[aria-pressed="true"]') || {}).textContent || "PlayStation";
+    $("#soon-wa").href = wa(`Hi WGS 👋 Please notify me when console & PC games launch. My platform: ${plat}`);
+  };
+  document.querySelectorAll(".plats button").forEach((b) => b.addEventListener("click", () => {
+    document.querySelectorAll(".plats button").forEach((x) => x.setAttribute("aria-pressed", x === b)); soon();
+  }));
+  soon();
   $("#stat-buyers").textContent = C.buyers;
   $("#stat-delivery").textContent = C.delivery;
   document.querySelectorAll(".js-delivery").forEach((e) => (e.textContent = C.delivery));
@@ -208,7 +250,7 @@
   const keys = ["prices", "offers", "announcements", "drops", "reviews"];
   Promise.all(keys.map(load)).then((res) => {
     keys.forEach((k, i) => (state.data[k] = res[i] || []));
-    renderPrices(); renderOffer(); renderNews(); renderDrops(); renderReviews();
+    renderCats(); renderPrices(); renderOffer(); renderNews(); renderDrops(); renderReviews();
     const last = state.data.prices.map((p) => p.updated).filter(Boolean).sort().pop();
     const d = last && new Date(last);
     if (d && !isNaN(d)) $("#updated").textContent = `Prices change with in-game events. Last updated ${d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.`;

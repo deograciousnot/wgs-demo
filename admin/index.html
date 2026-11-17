@@ -19,7 +19,7 @@
       <a class="logo" href="../" title="View the shop page"><span class="flag"></span><span class="mark">WGS</span><span class="sub">admin</span></a>
       <nav class="tabs" aria-label="Admin sections">
         <button data-tab="overview" aria-current="page"><i>◎</i><span>Overview</span></button>
-        <button data-tab="sales"><i>＋</i><span>Sales</span></button>
+        <button data-tab="orders"><i>🔔</i><span>Orders</span><b class="dot" id="ord-badge"></b></button>
         <button data-tab="shop"><i>₭</i><span>Prices</span></button>
         <button data-tab="posts"><i>✎</i><span>Posts</span></button>
         <button data-tab="reviews"><i>★</i><span>Reviews</span><b class="dot" id="rev-badge">3</b></button>
@@ -38,11 +38,16 @@
           </div>
         </header>
 
+        <article class="card today">
+          <div class="card-h"><h2>Today so far</h2><span class="muted" id="today-date"></span></div>
+          <div class="tgrid" id="today"></div>
+        </article>
+
         <div class="kpis">
           <article><p>Visitors</p><b id="k-visits">–</b><small id="k-visits-d"></small></article>
           <article><p>Order taps</p><b id="k-taps">–</b><small id="k-taps-d"></small></article>
-          <article><p>Tap rate</p><b id="k-rate">–</b><small>visitors who tapped "Order"</small></article>
-          <article class="money"><p>Sales logged</p><b id="k-rev">–</b><small id="k-rev-d"></small></article>
+          <article><p>Taps that bought</p><b id="k-conv">–</b><small id="k-conv-d"></small></article>
+          <article class="money"><p>Revenue</p><b id="k-rev">–</b><small id="k-rev-d"></small></article>
           <article class="group"><p>WhatsApp group</p><b>644</b><small>members</small></article>
         </div>
 
@@ -59,13 +64,54 @@
           <article class="card"><h2>Where visitors come from</h2><div class="bars" id="b-src"></div></article>
           <article class="card"><h2>Country</h2><div class="bars" id="b-cty"></div></article>
         </div>
+
+        <div class="cols two" style="margin-top:14px">
+          <article class="card wait">
+            <h2>Console &amp; PC games waitlist</h2>
+            <b class="big" id="wait-n">–</b><p>people tapped "Notify me" on the shop page</p>
+            <div class="bars" id="b-wait"></div>
+          </article>
+          <article class="card">
+            <h2>Product mix this week</h2>
+            <div class="bars" id="b-mix"></div>
+          </article>
+        </div>
+
+        <article class="card daily" style="margin-top:14px">
+          <div class="card-h"><h2>Day by day</h2><span class="muted">newest first</span></div>
+          <div class="tscroll">
+            <table id="daily">
+              <thead><tr><th scope="col">Day</th><th scope="col">Visitors</th><th scope="col">Order taps</th><th scope="col">Bought</th><th scope="col">No sale</th><th scope="col">Revenue</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </article>
       </section>
 
-      <!-- SALES -->
-      <section data-panel="sales" hidden>
-        <header class="top"><div><h1>Sales</h1><p class="lede">Log each sale after delivery. Two taps, and your revenue numbers stay real.</p></div></header>
-        <form class="card log" id="log">
-          <h2>Log a sale</h2>
+      <!-- ORDERS -->
+      <section data-panel="orders" hidden>
+        <header class="top">
+          <div><h1>Orders</h1><p class="lede">Every tap on "Order on WhatsApp" lands here with its code. Find the code in the chat, then mark how it ended.</p></div>
+          <div class="ord-tools">
+            <label class="switch" title="Get a ping on this phone for every new order"><input type="checkbox" id="notify" checked><span></span>Notify me</label>
+            <button class="btn ghost sm" id="sim" type="button">Simulate a new order</button>
+          </div>
+        </header>
+
+        <div class="seg filters" role="group" aria-label="Show orders">
+          <button type="button" data-f="new" aria-pressed="true">Waiting <b id="f-new"></b></button>
+          <button type="button" data-f="done" aria-pressed="false">Bought <b id="f-done"></b></button>
+          <button type="button" data-f="nosale" aria-pressed="false">No sale <b id="f-nosale"></b></button>
+          <button type="button" data-f="all" aria-pressed="false">All</button>
+        </div>
+        <p class="foot conv" id="conv"></p>
+        <ul class="orders" id="orders"></ul>
+        <p class="foot">Taps with no reply after 24 hours move to <b>No sale</b> by themselves, so the list never piles up.</p>
+
+        <details class="card manual">
+          <summary>Log a sale that didn't come from the site</summary>
+        <form class="log" id="log">
+          <p class="lbl">Type</p><div class="chips" id="c-cat"></div>
           <p class="lbl">Package</p><div class="chips" id="c-pkg"></div>
           <p class="lbl">Paid with</p><div class="chips" id="c-pay"></div>
           <p class="lbl">Country</p><div class="chips" id="c-cty"></div>
@@ -75,6 +121,7 @@
           </div>
           <button class="btn red" type="submit">Log sale</button>
         </form>
+        </details>
         <div class="cols two">
           <article class="card"><h2>This week</h2><div class="week" id="week"></div></article>
           <article class="card"><h2>Recent sales</h2><ul class="sales" id="sales"></ul></article>
@@ -85,8 +132,8 @@
       <section data-panel="shop" hidden>
         <header class="top"><div><h1>Prices &amp; offer</h1><p class="lede">Changes go live on the shop page as soon as you publish.</p></div></header>
         <article class="card">
-          <div class="card-h"><h2>Price list</h2><button class="btn ghost sm" id="add-pkg" type="button">+ Package</button></div>
-          <div class="ptable" id="ptable"></div>
+          <div class="card-h"><h2>Price list</h2></div>
+          <div id="ptable"></div>
           <button class="btn red" id="pub-prices" type="button">Publish prices</button>
         </article>
         <article class="card">
@@ -130,6 +177,12 @@
     </main>
   </div>
 
+  <div class="ping" id="ping" role="alert" hidden>
+    <span class="bell">🔔</span>
+    <div><b id="ping-t">New order</b><p id="ping-d"></p></div>
+    <button class="btn red sm" id="ping-open" type="button">Open</button>
+    <button class="x" id="ping-x" type="button" aria-label="Dismiss">✕</button>
+  </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="admin.js"></script>
 </body>
