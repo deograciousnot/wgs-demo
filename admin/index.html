@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WGS Admin · mockup</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#0b0b0e">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <p class="mock">Mockup · sample numbers · nothing here is saved</p>
+
+  <div class="app">
+    <aside class="side">
+      <a class="logo" href="../" title="View the shop page"><span class="flag"></span><span class="mark">WGS</span><span class="sub">admin</span></a>
+      <nav class="tabs" aria-label="Admin sections">
+        <button data-tab="overview" aria-current="page"><i>◎</i><span>Overview</span></button>
+        <button data-tab="sales"><i>＋</i><span>Sales</span></button>
+        <button data-tab="shop"><i>₭</i><span>Prices</span></button>
+        <button data-tab="posts"><i>✎</i><span>Posts</span></button>
+        <button data-tab="reviews"><i>★</i><span>Reviews</span><b class="dot" id="rev-badge">3</b></button>
+      </nav>
+      <a class="view" href="../" target="_blank" rel="noopener">View live page ↗</a>
+    </aside>
+
+    <main class="main">
+      <!-- OVERVIEW -->
+      <section data-panel="overview">
+        <header class="top">
+          <div><p class="hi">Habari, boss 👋</p><h1>Overview</h1></div>
+          <div class="range" role="group" aria-label="Date range">
+            <button data-range="7" aria-pressed="false">7 days</button>
+            <button data-range="14" aria-pressed="true">14 days</button>
+          </div>
+        </header>
+
+        <div class="kpis">
+          <article><p>Visitors</p><b id="k-visits">–</b><small id="k-visits-d"></small></article>
+          <article><p>Order taps</p><b id="k-taps">–</b><small id="k-taps-d"></small></article>
+          <article><p>Tap rate</p><b id="k-rate">–</b><small>visitors who tapped "Order"</small></article>
+          <article class="money"><p>Sales logged</p><b id="k-rev">–</b><small id="k-rev-d"></small></article>
+          <article class="group"><p>WhatsApp group</p><b>644</b><small>members</small></article>
+        </div>
+
+        <article class="card wide">
+          <div class="card-h">
+            <h2>Visitors and order taps per day</h2>
+          </div>
+          <div class="chart" id="trend"></div>
+          <p class="foot">Double CP started 12 Nov. Visits jumped the same day.</p>
+        </article>
+
+        <div class="cols">
+          <article class="card"><h2>Most tapped packages</h2><div class="bars" id="b-pkg"></div></article>
+          <article class="card"><h2>Where visitors come from</h2><div class="bars" id="b-src"></div></article>
+          <article class="card"><h2>Country</h2><div class="bars" id="b-cty"></div></article>
+        </div>
+      </section>
+
+      <!-- SALES -->
+      <section data-panel="sales" hidden>
+        <header class="top"><div><h1>Sales</h1><p class="lede">Log each sale after delivery. Two taps, and your revenue numbers stay real.</p></div></header>
+        <form class="card log" id="log">
+          <h2>Log a sale</h2>
+          <p class="lbl">Package</p><div class="chips" id="c-pkg"></div>
+          <p class="lbl">Paid with</p><div class="chips" id="c-pay"></div>
+          <p class="lbl">Country</p><div class="chips" id="c-cty"></div>
+          <div class="row">
+            <label>Amount<input id="l-amt" inputmode="numeric" required></label>
+            <label>Buyer <small>(optional)</small><input id="l-buyer" maxlength="30" placeholder="e.g. Brian"></label>
+          </div>
+          <button class="btn red" type="submit">Log sale</button>
+        </form>
+        <div class="cols two">
+          <article class="card"><h2>This week</h2><div class="week" id="week"></div></article>
+          <article class="card"><h2>Recent sales</h2><ul class="sales" id="sales"></ul></article>
+        </div>
+      </section>
+
+      <!-- PRICES & OFFER -->
+      <section data-panel="shop" hidden>
+        <header class="top"><div><h1>Prices &amp; offer</h1><p class="lede">Changes go live on the shop page as soon as you publish.</p></div></header>
+        <article class="card">
+          <div class="card-h"><h2>Price list</h2><button class="btn ghost sm" id="add-pkg" type="button">+ Package</button></div>
+          <div class="ptable" id="ptable"></div>
+          <button class="btn red" id="pub-prices" type="button">Publish prices</button>
+        </article>
+        <article class="card">
+          <div class="card-h"><h2>Offer banner</h2><label class="switch"><input type="checkbox" id="o-on" checked><span></span>On</label></div>
+          <div class="preview" id="o-prev"><span class="pulse"></span><p><b id="o-pt"></b> <span id="o-pd"></span></p><em id="o-pc"></em></div>
+          <label>Title<input id="o-title" value="Double CP is live"></label>
+          <label>Details<input id="o-detail" value="Every package comes with 100% bonus CP. Event ends 20 December."></label>
+          <label>Ends<input id="o-end" type="datetime-local" value="2026-12-20T23:59"></label>
+          <button class="btn red" id="pub-offer" type="button">Publish offer</button>
+        </article>
+      </section>
+
+      <!-- POSTS -->
+      <section data-panel="posts" hidden>
+        <header class="top"><div><h1>Posts</h1><p class="lede">Updates, instructions and upcoming drops.</p></div></header>
+        <form class="card" id="post">
+          <div class="seg" role="group" aria-label="Post type">
+            <button type="button" data-kind="update" aria-pressed="true">Update</button>
+            <button type="button" data-kind="drop" aria-pressed="false">Upcoming drop</button>
+          </div>
+          <label>Title<input id="p-title" required maxlength="60" placeholder="e.g. Mythic Alias lands 19 Nov"></label>
+          <label>Message<textarea id="p-msg" rows="3" maxlength="300" placeholder="What should buyers know?"></textarea></label>
+          <div class="row">
+            <label>Date<input id="p-date" type="date"></label>
+            <label class="only-update check"><input type="checkbox" id="p-pin"> Pin to top</label>
+            <label class="only-drop file" hidden>Poster<input id="p-img" type="file" accept="image/*"></label>
+          </div>
+          <button class="btn red" type="submit">Post it</button>
+        </form>
+        <ul class="posts" id="posts"></ul>
+      </section>
+
+      <!-- REVIEWS -->
+      <section data-panel="reviews" hidden>
+        <header class="top"><div><h1>Reviews</h1><p class="lede">Reviews buyers send wait here. Only the ones you approve show on the shop page.</p></div></header>
+        <h2 class="sub-h">Waiting for you <span id="pend-n"></span></h2>
+        <ul class="revs" id="pending"></ul>
+        <h2 class="sub-h">On the shop page <span id="live-n"></span></h2>
+        <ul class="revs live" id="live"></ul>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="admin.js"></script>
+</body>
+</html>
