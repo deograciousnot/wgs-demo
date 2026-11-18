@@ -1,25 +1,28 @@
-# WGS site: how to update it from your phone
+# WGS site: how it works
 
-Everything that changes on the site lives in one Google Sheet with 5 tabs.
-Edit a cell, and the site shows the change the next time someone opens it.
+- **Shop page:** https://wgs.ardesams.com
+- **Admin panel:** https://wgs.ardesams.com/admin (sign in with the admin email and password)
 
-## One-time setup (about 10 minutes)
-1. Create a Google Sheet called **WGS site**.
-2. Make 5 tabs named exactly: `prices`, `offers`, `announcements`, `drops`, `reviews`.
-3. In each tab, import the matching file from `sheet-template/` (File → Import → Upload → "Replace current sheet").
-4. File → Share → **Publish to web** → pick the tab → **Comma-separated values (.csv)** → Publish. Copy the link.
-5. Paste each link into `data.js` under `sheets:`. Do this for all 5 tabs.
+Everything on the shop page comes from the database and is edited in the admin panel:
 
-## What each tab does
-| Tab | Columns | Tips |
-|---|---|---|
-| prices | category, name, note, cp, bonus, kes, tzs, usd, tag, uid, show, updated | `category` = double, regular or battlepass (each becomes a tab). Battle Pass rows use `name` and `note` instead of cp, and `uid` = yes so buyers enter their Player UID. `bonus` = extra CP during events (0 when there's no event). `tag` = "Best value", "Most popular" or blank. `show` = yes/no. Change `updated` to today's date whenever you edit prices. |
-| offers | title, detail, ends, show | The red banner at the top. `ends` like `2026-12-20T23:59:00Z`. It hides itself when time runs out. |
-| announcements | date, title, message, pinned | Instructions and news. `pinned` = yes keeps it on top. |
-| drops | date, title, note, image, show | Upcoming in-game stuff. `image` = a link to your own poster (optional). Past dates hide themselves. |
-| reviews | name, country, stars, message, date, show | Reviews people send land in WhatsApp. Paste the good ones here and set `show` = yes. Country: KE, TZ or UG. |
+| Admin tab | What it does |
+|---|---|
+| Overview | Today vs yesterday, visitors, order taps, how many taps bought, revenue in KSH or TSH, where visitors come from, the games waitlist, day-by-day table |
+| Orders | Every "Order on WhatsApp" tap with its code. Mark **Bought** or **No sale**. Unanswered taps become No sale after 24 h. Log sales that came straight through WhatsApp. |
+| Prices | Prices per product type (Double CP, Regular CP, Battle Pass, Console & PC games). Switch types on/off, add items, then **Publish prices**. Also the offer banner. |
+| Posts | Updates (pin to top) and upcoming drops (with poster). Edit or delete anytime. |
+| Reviews | Reviews buyers send wait here. Approve to show them on the page. |
+| Settings | WhatsApp number, catalogue / YouTube / TikTok links, buyers count, delivery time, group members, exchange rate, password. |
 
-## Rules of thumb
-- Don't rename the column headers.
-- Dates as `YYYY-MM-DD`.
-- Never post buyers' login details anywhere on the sheet. The sheet is public.
+## Tips
+- Put `?src=tiktok` or `?src=youtube` at the end of the shop link in your bios, so the Overview knows where visitors came from.
+- On your phone, open the admin panel and choose **Add to Home screen**. It then opens like an app.
+- Switch on **Notify me** in Orders to get a sound and a notification for new orders while the panel is open.
+
+## Never
+- Never put buyers' login details anywhere in the panel. Logins stay in WhatsApp.
+- Never share the Supabase **secret / service_role key** or the database password. The key in `config.js` is the public one and is safe.
+
+## Technical
+- Static site on GitHub Pages, database and login on Supabase (free plan).
+- `supabase/schema.sql` creates everything (tables, security rules, storage, stats). Run it only on a new project.

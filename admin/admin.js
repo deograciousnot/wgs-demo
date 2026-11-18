@@ -1,201 +1,210 @@
-/* WGS admin MOCKUP. All numbers are sample data, and nothing is saved anywhere. */
+/* WGS admin panel. Talks to Supabase as the signed-in admin.
+   Security lives in the database rules (schema.sql): this page can only do what an admin account is allowed to do. */
 (() => {
+  const CFG = window.WGS_CONFIG;
+  const sb = supabase.createClient(CFG.url, CFG.key);
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-  const fmt = (n) => Math.round(n).toLocaleString("en-US");
+  const fmt = (n) => Math.round(Number(n) || 0).toLocaleString("en-US");
+  const num = (v) => Number(String(v ?? "").replace(/[^\d.]/g, "")) || 0;
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const sum = (a) => a.reduce((s, x) => s + x, 0);
-  const toast = (msg) => { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2600); };
-  let rnd = 7; const rand = () => (rnd = (rnd * 16807) % 2147483647) / 2147483647;   // seeded, so the mockup looks the same every load
+  const TZ = "Africa/Nairobi";
+  const dayKey = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: TZ });          // YYYY-MM-DD in Kenya time
+  const dShort = (k) => new Date(k + "T12:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const dLong = (k) => new Date(k + "T12:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  const hhmm = (d) => new Date(d).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: TZ });
+  const toast = (msg) => { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2800); };
+  const fail = (what, error) => { console.error(what, error); toast(`Couldn't ${what}. Check your connection and try again.`); };
 
-  /* ── catalogue ── */
-  const CATS = [
-    { id: "double", label: "Double CP", live: true },
-    { id: "regular", label: "Regular CP", live: true },
-    { id: "battlepass", label: "Battle Pass", live: true, named: true, hint: "Delivered with the buyer's Player UID only. The shop page asks for it." },
-    { id: "games", label: "Console & PC games", live: false, named: true, hint: "Coming soon. Add games now and switch this on when you launch. It appears as a new tab on the shop page." }
-  ];
-  const PKGS = [
-    { cat: "double", cp: 800, bonus: 800, kes: 1350, tzs: 27000, tag: "" },
-    { cat: "double", cp: 2000, bonus: 2000, kes: 3500, tzs: 70000, tag: "" },
-    { cat: "double", cp: 4000, bonus: 4000, kes: 6500, tzs: 130000, tag: "Most popular" },
-    { cat: "double", cp: 8000, bonus: 8000, kes: 12000, tzs: 240000, tag: "Best value" },
-    { cat: "regular", cp: 80, bonus: 0, kes: 200, tzs: 4000, tag: "" },
-    { cat: "regular", cp: 400, bonus: 0, kes: 750, tzs: 15000, tag: "" },
-    { cat: "regular", cp: 800, bonus: 0, kes: 1350, tzs: 27000, tag: "" },
-    { cat: "regular", cp: 2000, bonus: 0, kes: 3500, tzs: 70000, tag: "Popular" },
-    { cat: "battlepass", name: "Battle Pass", kes: 750, tzs: 15000, tag: "" },
-    { cat: "battlepass", name: "Battle Pass Bundle", kes: 1950, tzs: 39000, tag: "Best value" }
-  ];
-  PKGS.forEach((p) => (p.show = true));
-  const catOf = (id) => CATS.find((c) => c.id === id) || CATS[0];
-  const pkgLabel = (p) => p.name || `${fmt(p.cp + (p.bonus || 0))} CP`;
-  const pkgLong = (p) => p.name || `${fmt(p.cp)}${p.bonus ? " + " + fmt(p.bonus) : ""} CP`;
-  // Money: each sale keeps the currency it was paid in. Totals can be shown in KSH or TSH using his own rate.
-  let rate = 20;            // TSH per 1 KSH, editable on the overview
-  let cur = "KES";          // currency for combined totals
-  const toKES = (o) => o.cty === "TZ" ? o.amt / rate : o.amt;
-  const money = (o) => `${o.cty === "TZ" ? "TSH" : "KSH"} ${fmt(o.amt)}`;
-  const mny = (kes) => cur === "KES" ? `KSH ${fmt(kes)}` : `TSH ${fmt(kes * rate)}`;   // combined total, shown in the chosen currency
+  const D = { settings: {}, cats: [], pkgs: [], offer: null, posts: [], reviews: [], orders: [], visits: [], breakdown: [] };
+  let range = 7, cur = "KES";
+  const rate = () => num(D.settings.rate) || 20;
 
-  /* ── history: 4–16 Nov are fixed sample days; today (17 Nov) is built from the orders list ── */
-  const START = new Date("2026-11-04T00:00:00");
-  const TODAY_I = 13, EVENT_I = 8;
-  const NOW = new Date("2026-11-17T16:48:00");
-  const day = (i) => new Date(START.getTime() + i * 864e5);
-  const dShort = (d) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-  const visits = [118, 132, 125, 141, 156, 149, 163, 171, 402, 388, 341, 297, 276, 301];
-  const pastTaps = [9, 11, 10, 12, 13, 12, 14, 15, 44, 41, 35, 29, 27];
-  const pastBought = [5, 6, 6, 7, 8, 7, 8, 9, 26, 24, 20, 17, 15];
-  const avgSale = [4300, 4900, 4100, 5200, 4700, 5600, 4400, 5000, 6100, 5800, 5400, 5900, 5300];
-
-  /* today's orders (sample) */
-  const NAMES = ["Brian", "", "Kevin", "Neema", "", "Sam", "Ali", "", "Ochieng", "Asha", "", "Wanjiru", "Juma", "", "Mercy", "Otieno", ""];
-  const PAYS = ["M-Pesa", "M-Pesa", "M-Pesa", "M-Pesa", "Binance", "Bank", "PayPal", "Apple Pay"];
-  const weights = [3, 2, 4, 1.5, .5, 1, 1, 1, 1.5, .8];
-  const pickPkg = () => { let r = rand() * sum(weights); for (let i = 0; i < weights.length; i++) { r -= weights[i]; if (r <= 0) return i; } return 0; };
-  let codeN = 4700;
-  function makeOrder(t, status) {
-    const pi = pickPkg(), p = PKGS[pi], cty = rand() < .8 ? "KE" : "TZ";
-    return {
-      code: "WGS-" + (codeN += 1 + Math.floor(rand() * 9)), pi, cty, status,
-      amt: cty === "TZ" ? p.tzs : p.kes, pay: PAYS[Math.floor(rand() * PAYS.length)],
-      name: NAMES[Math.floor(rand() * NAMES.length)], uid: p.cat === "battlepass" ? "6743" + String(Math.floor(1e11 + rand() * 9e11)) : "",
-      t: new Date(t), src: "site"
-    };
+  /* ══ sign-in ══════════════════════════════════════════════════════════ */
+  const showOnly = (id) => ["#login-form", "#reset-form", "#denied"].forEach((s) => ($(s).hidden = s !== id));
+  let recovering = location.hash.includes("type=recovery");
+  async function boot(session) {
+    if (recovering) return;
+    if (!session) { $("#app").hidden = true; $("#login").hidden = false; showOnly("#login-form"); return; }
+    const { data, error } = await sb.from("admins").select("user_id").eq("user_id", session.user.id).maybeSingle();
+    if (error || !data) { $("#app").hidden = true; $("#login").hidden = false; showOnly("#denied"); return; }
+    $("#login").hidden = true; $("#app").hidden = false;
+    $("#who").textContent = session.user.email;
+    await loadAll();
+    startRealtime();
+    const hash = location.hash.slice(1); if (hash && $(`[data-panel="${hash}"]`)) show(hash);
   }
-  const orders = [];
-  for (let k = 0; k < 31; k++) {
-    const t = new Date("2026-11-17T08:05:00").getTime() + k * 16.3 * 60000;
-    const st = k >= 27 ? "new" : rand() < .7 ? "done" : "nosale";
-    orders.push(makeOrder(t, st));
-  }
-  orders.reverse();
+  $("#login-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    $("#l-go").disabled = true; $("#l-err").textContent = "";
+    const { data, error } = await sb.auth.signInWithPassword({ email: $("#l-email").value.trim(), password: $("#l-pass").value });
+    $("#l-go").disabled = false;
+    if (error) { $("#l-err").textContent = "Wrong email or password."; return; }
+    $("#l-pass").value = "";
+    boot(data.session);
+  });
+  $("#l-forgot").addEventListener("click", async () => {
+    const email = $("#l-email").value.trim();
+    if (!email) { $("#l-err").textContent = "Type your email first, then tap Forgot password."; return; }
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+    $("#l-err").textContent = error ? "Couldn't send the reset email. Try again later." : "Check your email for a reset link.";
+  });
+  $("#reset-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const { error } = await sb.auth.updateUser({ password: $("#r-pass").value });
+    if (error) { $("#r-err").textContent = error.message; return; }
+    toast("Password saved ✓"); recovering = false; history.replaceState(null, "", location.pathname);
+    const { data } = await sb.auth.getSession(); boot(data.session);
+  });
+  sb.auth.onAuthStateChange((event) => {
+    if (event === "PASSWORD_RECOVERY") { recovering = true; $("#app").hidden = true; $("#login").hidden = false; showOnly("#reset-form"); }
+    if (event === "SIGNED_OUT") { $("#app").hidden = true; $("#login").hidden = false; showOnly("#login-form"); }
+  });
+  const signOut = () => sb.auth.signOut();
+  $("#signout").addEventListener("click", signOut);
+  $("#denied-out").addEventListener("click", signOut);
 
-  const todayOrders = () => orders.filter((o) => o.t.toDateString() === NOW.toDateString());
-  function todayStats() {
-    const site = todayOrders().filter((o) => o.src === "site");
-    const done = todayOrders().filter((o) => o.status === "done");
-    const ke = sum(done.filter((o) => o.cty !== "TZ").map((o) => o.amt)), tz = sum(done.filter((o) => o.cty === "TZ").map((o) => o.amt));
-    return { visits: visits[TODAY_I], taps: site.length, bought: done.length, nosale: site.filter((o) => o.status === "nosale").length, waiting: site.filter((o) => o.status === "new").length, ke, tz, rev: ke + tz / rate };
+  /* ══ data ═════════════════════════════════════════════════════════════ */
+  async function loadAll() {
+    // Orders older than 24 h with no reply become "No sale".
+    await sb.from("orders").update({ status: "nosale", auto_closed: true, closed_at: new Date().toISOString() })
+      .eq("status", "new").lt("created_at", new Date(Date.now() - 864e5).toISOString());
+    const since = new Date(Date.now() - 30 * 864e5).toISOString();
+    const r = await Promise.all([
+      sb.from("settings").select("key,value"),
+      sb.from("categories").select("*").order("sort"),
+      sb.from("packages").select("*").order("sort"),
+      sb.from("offers").select("*").order("updated_at", { ascending: false }).limit(1),
+      sb.from("posts").select("*").order("date", { ascending: false }),
+      sb.from("reviews").select("*").order("created_at", { ascending: false }),
+      sb.from("orders").select("*").gte("created_at", since).order("created_at", { ascending: false }).limit(2000),
+      sb.rpc("admin_visits", { n_days: 28 }),
+      sb.rpc("admin_breakdown", { n_days: 7 })
+    ]);
+    const bad = r.find((x) => x.error);
+    if (bad) fail("load everything", bad.error);
+    D.settings = Object.fromEntries((r[0].data || []).map((x) => [x.key, x.value]));
+    D.cats = r[1].data || []; D.pkgs = r[2].data || []; D.offer = (r[3].data || [])[0] || null;
+    D.posts = r[4].data || []; D.reviews = r[5].data || []; D.orders = r[6].data || [];
+    D.visits = r[7].data || []; D.breakdown = r[8].data || [];
+    $("#rate").value = rate();
+    renderAll();
   }
-  // Past days: about 85% of value paid in KSH, 15% in TSH (sample split). Stored in the currency actually received.
-  const pastKE = pastBought.map((b, i) => Math.round(b * avgSale[i] * .85 / 50) * 50);
-  const pastTZ = pastBought.map((b, i) => Math.round(b * avgSale[i] * .15 * 20 / 1000) * 1000);
-  function series() {
-    const t = todayStats();
-    const ke = [...pastKE, t.ke], tz = [...pastTZ, t.tz];
-    return {
-      taps: [...pastTaps, t.taps], bought: [...pastBought, t.bought],
-      nosale: [...pastTaps.map((x, i) => x - pastBought[i]), t.nosale],
-      ke, tz, rev: ke.map((k, i) => k + tz[i] / rate)
-    };
+  async function reloadBreakdown() {
+    const { data, error } = await sb.rpc("admin_breakdown", { n_days: range });
+    if (!error) D.breakdown = data || [];
   }
-  const recv = (ke, tz) => `<span class="recv">received <b>KSH ${fmt(ke)}</b> + <b>TSH ${fmt(tz)}</b></span>`;
+  function renderAll() {
+    renderOverview(); renderOrders(); salesChips(); renderPrices(); renderOffer(); renderPosts(); renderReviews(); renderSettings();
+  }
 
-  /* ── tabs ── */
+  /* ══ tabs ═════════════════════════════════════════════════════════════ */
   function show(tab) {
     $$(".tabs button").forEach((b) => b.dataset.tab === tab ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
     $$("[data-panel]").forEach((p) => (p.hidden = p.dataset.panel !== tab));
+    history.replaceState(null, "", "#" + tab);
     scrollTo(0, 0);
     if (tab === "overview") renderOverview();
   }
   $$(".tabs button").forEach((b) => b.addEventListener("click", () => show(b.dataset.tab)));
 
-  /* ── overview ── */
-  let range = 7;
-  $$(".range button[data-range]").forEach((b) => {
-    b.setAttribute("aria-pressed", Number(b.dataset.range) === range);
-    b.addEventListener("click", () => {
-      range = Number(b.dataset.range);
-      $$(".range button[data-range]").forEach((x) => x.setAttribute("aria-pressed", x === b));
-      renderOverview();
-    });
-  });
+  /* ══ money ════════════════════════════════════════════════════════════ */
+  const toKES = (o) => o.currency === "TZS" ? o.amount / rate() : o.amount;
+  const mny = (kes) => cur === "KES" ? `KSH ${fmt(kes)}` : `TSH ${fmt(kes * rate())}`;
+  const money = (o) => `${o.currency === "TZS" ? "TSH" : "KSH"} ${fmt(o.amount)}`;
+  const recv = (ke, tz) => `<span class="recv">received <b>KSH ${fmt(ke)}</b>${tz ? ` + <b>TSH ${fmt(tz)}</b>` : ""}</span>`;
   $$(".range button[data-cur]").forEach((b) => b.addEventListener("click", () => {
-    cur = b.dataset.cur;
-    $$(".range button[data-cur]").forEach((x) => x.setAttribute("aria-pressed", x === b));
-    renderOverview(); renderSales();
+    cur = b.dataset.cur; $$(".range button[data-cur]").forEach((x) => x.setAttribute("aria-pressed", x === b)); renderOverview();
   }));
-  $("#rate").addEventListener("change", (e) => {
-    const r = Number(String(e.target.value).replace(/[^\d.]/g, ""));
-    if (r > 0) { rate = r; renderOverview(); renderSales(); toast(`Rate set: 1 KSH = ${fmt(rate)} TSH`); } else e.target.value = rate;
+  $("#rate").addEventListener("change", async (e) => {
+    const r = num(e.target.value);
+    if (!(r > 0)) { e.target.value = rate(); return; }
+    const { error } = await sb.from("settings").upsert({ key: "rate", value: String(r), updated_at: new Date().toISOString() });
+    if (error) return fail("save the rate", error);
+    D.settings.rate = String(r); renderOverview(); renderSettings(); toast(`Rate saved: 1 KSH = ${fmt(r)} TSH`);
   });
-  const pct = (cur, prev) => {
-    if (!prev) return "";
-    const p = (cur - prev) / prev * 100;
-    return `<span class="${p >= 0 ? "up" : "down"}">${p >= 0 ? "▲" : "▼"} ${Math.abs(p).toFixed(0)}%</span>`;
-  };
+  $$(".range button[data-range]").forEach((b) => b.addEventListener("click", async () => {
+    range = Number(b.dataset.range); $$(".range button[data-range]").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    await reloadBreakdown(); renderOverview();
+  }));
 
-  function renderToday() {
-    const t = todayStats(), s = series(), y = TODAY_I - 1;
-    const hour = NOW.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-    $("#today-date").textContent = `Tue 17 Nov · up to ${hour} · arrows compare with yesterday`;
-    const cell = (label, v, prev, isMoney, extra = "") => `<div><p>${label}</p><b>${isMoney ? mny(v) : fmt(v)}</b><small>${pct(v, prev)} yesterday ${isMoney ? mny(prev) : fmt(prev)}</small>${extra}</div>`;
-    $("#today").innerHTML =
-      cell("Visitors", t.visits, visits[y]) + cell("Order taps", t.taps, s.taps[y]) +
-      cell("Bought", t.bought, s.bought[y]) + cell("Revenue", t.rev, s.rev[y], true, recv(t.ke, t.tz));
+  /* ══ overview ═════════════════════════════════════════════════════════ */
+  function days(n, endOffset = 0) {   // list of day keys, oldest first
+    const out = []; const now = Date.now();
+    for (let i = n - 1 + endOffset; i >= endOffset; i--) out.push(dayKey(now - i * 864e5));
+    return out;
   }
+  function perDay(keys) {
+    const vis = Object.fromEntries(D.visits.map((v) => [v.day, Number(v.visitors)]));
+    const rows = Object.fromEntries(keys.map((k) => [k, { day: k, visitors: vis[k] || 0, taps: 0, bought: 0, nosale: 0, ke: 0, tz: 0, rev: 0 }]));
+    D.orders.forEach((o) => {
+      const r = rows[dayKey(o.created_at)]; if (!r) return;
+      if (o.source === "site") r.taps++;
+      if (o.status === "done") { r.bought++; if (o.currency === "TZS") r.tz += o.amount; else r.ke += o.amount; }
+      if (o.status === "nosale" && o.source === "site") r.nosale++;
+    });
+    Object.values(rows).forEach((r) => (r.rev = r.ke + r.tz / rate()));
+    return keys.map((k) => rows[k]);
+  }
+  const pct = (c, p) => { if (!p) return ""; const x = (c - p) / p * 100; return `<span class="${x >= 0 ? "up" : "down"}">${x >= 0 ? "▲" : "▼"} ${Math.abs(x).toFixed(0)}%</span>`; };
 
   function renderOverview() {
-    renderToday();
-    const s = series(), from = s.taps.length - range;
-    const slice = (a) => a.slice(from), prev = (a) => range === 7 ? sum(a.slice(from - 7, from)) : 0;
-    const V = slice(visits), T = slice(s.taps), B = slice(s.bought), N = slice(s.nosale), R = slice(s.rev);
-    const vs = range === 7 ? " vs previous 7 days" : "";
-    $("#k-visits").textContent = fmt(sum(V)); $("#k-visits-d").innerHTML = range === 7 ? pct(sum(V), prev(visits)) + vs : "last 14 days";
-    $("#k-taps").textContent = fmt(sum(T)); $("#k-taps-d").innerHTML = range === 7 ? pct(sum(T), prev(s.taps)) + vs : "last 14 days";
-    $("#k-conv").textContent = Math.round(sum(B) / (sum(B) + sum(N)) * 100) + "%";
-    $("#k-conv-d").textContent = `${fmt(sum(B))} bought · ${fmt(sum(N))} no sale`;
-    $("#k-rev").textContent = mny(sum(R));
-    $("#k-rev-d").innerHTML = (range === 7 ? pct(sum(R), prev(s.rev)) + vs : "last 14 days") + recv(sum(slice(s.ke)), sum(slice(s.tz)));
+    if ($('[data-panel="overview"]').hidden) return;
+    const user = $("#who").textContent;
+    $("#hello").textContent = `Habari${user ? ", " + user.split("@")[0] : ""} 👋`;
+    const [y, t] = perDay(days(2));
+    $("#today-date").textContent = `${new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: TZ })} · arrows compare with yesterday`;
+    const cell = (label, v, p, isM, extra = "") => `<div><p>${label}</p><b>${isM ? mny(v) : fmt(v)}</b><small>${pct(v, p)} yesterday ${isM ? mny(p) : fmt(p)}</small>${extra}</div>`;
+    $("#today").innerHTML = cell("Visitors", t.visitors, y.visitors) + cell("Order taps", t.taps, y.taps) + cell("Bought", t.bought, y.bought) + cell("Revenue", t.rev, y.rev, true, recv(t.ke, t.tz));
 
-    const total = sum(V);
-    bars("#b-pkg", [["4,000 + 4,000 CP", 92], ["800 + 800 CP", 98], ["2,000 + 2,000 CP", 71], ["8,000 + 8,000 CP", 46], ["Battle Pass", 38], ["Regular CP (all)", 33]]
-      .sort((a, b) => b[1] - a[1]).map(([k, x]) => [k, x * range / 14]), (x) => fmt(x) + " taps");
-    bars("#b-src", [["TikTok", .46], ["WhatsApp status", .31], ["Google", .12], ["Direct / other", .11]].map(([k, sh]) => [k, sh * total]), (x) => fmt(x));
-    bars("#b-cty", [["Kenya", .78], ["Tanzania", .22]].map(([k, sh]) => [k, sh * total]), (x) => `${fmt(x)} · ${Math.round(x / total * 100)}%`);
-    const wk = sum(s.rev.slice(-7));
-    bars("#b-mix", [["Double CP", .71], ["Regular CP", .18], ["Battle Pass", .11]].map(([k, sh]) => [k, sh * wk]), (x) => mny(x));
-    $("#wait-n").textContent = fmt(sum(WAIT.map((w) => w[1])));
-    bars("#b-wait", WAIT, (x) => fmt(x));
-    renderDaily(s);
-    drawTrend(s);
+    const R = perDay(days(range)), P = perDay(days(range, range));
+    const S = (rows, k) => sum(rows.map((r) => r[k]));
+    const vs = ` vs previous ${range} days`;
+    $("#k-visits").textContent = fmt(S(R, "visitors")); $("#k-visits-d").innerHTML = (pct(S(R, "visitors"), S(P, "visitors")) || "") + vs;
+    $("#k-taps").textContent = fmt(S(R, "taps")); $("#k-taps-d").innerHTML = (pct(S(R, "taps"), S(P, "taps")) || "") + vs;
+    const closed = S(R, "bought") + S(R, "nosale");
+    $("#k-conv").textContent = closed ? Math.round(S(R, "bought") / closed * 100) + "%" : "–";
+    $("#k-conv-d").textContent = `${fmt(S(R, "bought"))} bought · ${fmt(S(R, "nosale"))} no sale`;
+    $("#k-rev").textContent = mny(S(R, "rev")); $("#k-rev-d").innerHTML = (pct(S(R, "rev"), S(P, "rev")) || "") + vs + recv(S(R, "ke"), S(R, "tz"));
+    $("#k-group").textContent = D.settings.group_members ? fmt(num(D.settings.group_members)) : "–";
+
+    const from = days(range)[0];
+    const inRange = D.orders.filter((o) => dayKey(o.created_at) >= from);
+    const count = (arr, f) => { const m = {}; arr.forEach((x) => { const k = f(x); m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]); };
+    bars("#b-pkg", count(inRange.filter((o) => o.source === "site"), (o) => o.item).slice(0, 6), (x) => `${fmt(x)} taps`, "No order taps yet.");
+    const bd = (kind) => D.breakdown.filter((b) => b.kind === kind).map((b) => [b.label, Number(b.n)]).sort((a, b) => b[1] - a[1]);
+    const nice = { tiktok: "TikTok", youtube: "YouTube", whatsapp: "WhatsApp", google: "Google", instagram: "Instagram", facebook: "Facebook", twitter: "X / Twitter", direct: "Direct / unknown", other: "Other sites" };
+    bars("#b-src", bd("source").map(([k, n]) => [nice[k] || k, n]), (x) => fmt(x) + " visitors", "No visits yet.");
+    const cty = { KE: "Kenya", TZ: "Tanzania", UG: "Uganda", Other: "Elsewhere" };
+    const cRows = bd("country").map(([k, n]) => [cty[k] || k, n]); const cTot = sum(cRows.map((r) => r[1]));
+    bars("#b-cty", cRows, (x) => `${fmt(x)} · ${Math.round(x / (cTot || 1) * 100)}%`, "No visits yet.");
+    const w = bd("waitlist"); $("#wait-n").textContent = fmt(sum(w.map((r) => r[1])));
+    bars("#b-wait", w, (x) => fmt(x), "Nobody yet. It fills up as people tap Notify me.");
+    const catLabel = (id) => (D.cats.find((c) => c.id === id) || {}).label || id || "Other";
+    const mix = {}; inRange.filter((o) => o.status === "done").forEach((o) => { const k = catLabel(o.category); mix[k] = (mix[k] || 0) + toKES(o); });
+    bars("#b-mix", Object.entries(mix).sort((a, b) => b[1] - a[1]), (x) => mny(x), "No sales in this period yet.");
+
+    $("#daily tbody").innerHTML = perDay(days(range)).reverse().map((r, i) => `
+      <tr class="${i === 0 ? "today" : ""}"><td>${i === 0 ? "Today" : dLong(r.day)}</td><td>${fmt(r.visitors)}</td><td>${fmt(r.taps)}</td><td>${fmt(r.bought)}</td><td>${fmt(r.nosale)}</td><td>${mny(r.rev)}</td></tr>`).join("");
+    drawTrend(R);
   }
-  const WAIT = [["PlayStation", 19], ["PC", 11], ["Xbox", 7]];
-
-  function renderDaily(s) {
-    const rows = [];
-    for (let i = s.taps.length - 1; i >= s.taps.length - range; i--) {
-      const d = day(i);
-      rows.push(`<tr class="${i === EVENT_I ? "ev" : ""} ${i === TODAY_I ? "today" : ""}">
-        <td>${i === TODAY_I ? "Today" : d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</td>
-        <td>${fmt(visits[i])}</td><td>${fmt(s.taps[i])}</td><td>${fmt(s.bought[i])}</td><td>${fmt(s.nosale[i])}</td><td>${mny(s.rev[i])}</td></tr>`);
-    }
-    $("#daily tbody").innerHTML = rows.join("");
-  }
-
-  function bars(sel, rows, label) {
-    const max = Math.max(...rows.map((r) => r[1]));
+  function bars(sel, rows, label, empty) {
+    if (!rows.length) { $(sel).innerHTML = `<p class="empty-note">${empty}</p>`; return; }
+    const max = Math.max(...rows.map((r) => r[1])) || 1;
     $(sel).innerHTML = rows.map(([k, x]) => `
       <div class="bar"><span>${esc(k)}</span><span class="v">${label(x)}</span>
         <div class="track"><div class="fill" style="width:${(x / max * 100).toFixed(1)}%"></div></div></div>`).join("");
   }
 
   /* trend: two stacked panels (visitors, order taps) sharing one time axis, each on its own scale */
-  function drawTrend(s = series()) {
-    const box = $("#trend");
-    if (!box || box.closest("[hidden]")) return;
-    const off = visits.length - range;
-    const V = visits.slice(off), T = s.taps.slice(off);
-    const W = Math.max(320, box.clientWidth), PH = 104, GAP = 34, L = 34, R = 74, TOP = 18;
-    const H = TOP + PH * 2 + GAP + 26;
-    const x = (i) => L + (W - L - R) * (i / (V.length - 1));
-    const nice = (m) => { const st = Math.pow(10, Math.floor(Math.log10(m))); return Math.ceil(m / st) * st; };
-    const panels = [
-      { data: V, cls: "1", name: "Visitors", y0: TOP, max: nice(Math.max(...V)) },
-      { data: T, cls: "2", name: "Order taps", y0: TOP + PH + GAP, max: nice(Math.max(...T)) }
-    ];
+  function drawTrend(rows) {
+    const box = $("#trend"); if (!box || box.closest("[hidden]")) return;
+    const V = rows.map((r) => r.visitors), T = rows.map((r) => r.taps), K = rows.map((r) => r.day);
+    const W = Math.max(320, box.clientWidth), PH = 104, GAP = 34, L = 34, R = 74, TOP = 18, H = TOP + PH * 2 + GAP + 26;
+    const x = (i) => L + (W - L - R) * (i / Math.max(1, V.length - 1));
+    const nice = (m) => { m = Math.max(m, 4); const st = Math.pow(10, Math.floor(Math.log10(m))); return Math.ceil(m / st) * st; };
+    const panels = [{ data: V, cls: "1", name: "Visitors", y0: TOP, max: nice(Math.max(...V)) }, { data: T, cls: "2", name: "Order taps", y0: TOP + PH + GAP, max: nice(Math.max(...T)) }];
     let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Daily visitors and order taps, last ${range} days">`;
     panels.forEach((p) => {
       const y = (v) => p.y0 + PH - v / p.max * PH;
@@ -207,13 +216,10 @@
       const li = p.data.length - 1;
       svg += `<circle class="mk" cx="${x(li)}" cy="${y(p.data[li])}" r="4" fill="var(--s${p.cls})"/><text class="end" x="${x(li) + 9}" y="${y(p.data[li]) + 4}">${fmt(p.data[li])}</text><g class="hov" data-p="${p.cls}"></g>`;
     });
-    const ei = EVENT_I - off;
-    if (ei >= 0) svg += `<line class="ev" x1="${x(ei)}" x2="${x(ei)}" y1="${TOP - 2}" y2="${TOP + PH * 2 + GAP}"/><text class="evt" x="${x(ei) + 5}" y="${TOP + 10}">Double CP</text>`;
     const step = range > 7 ? 2 : 1;
-    V.forEach((_, i) => { if ((V.length - 1 - i) % step === 0) svg += `<text class="ax" x="${x(i)}" y="${H - 4}" text-anchor="middle">${off + i === TODAY_I ? "Today" : dShort(day(off + i))}</text>`; });
+    K.forEach((k, i) => { if ((K.length - 1 - i) % step === 0) svg += `<text class="ax" x="${x(i)}" y="${H - 4}" text-anchor="middle">${i === K.length - 1 ? "Today" : dShort(k)}</text>`; });
     svg += `<line class="cross" id="cross" y1="${TOP - 2}" y2="${TOP + PH * 2 + GAP}" visibility="hidden"/><rect class="hit" x="${L}" y="0" width="${W - L - R + 8}" height="${H - 18}"/></svg><div class="tip" hidden></div>`;
     box.innerHTML = svg;
-
     const el = $("svg", box), tip = $(".tip", box), cross = $("#cross", box), hit = $(".hit", box);
     const move = (ev) => {
       const r = el.getBoundingClientRect(), k = r.width / W;
@@ -222,188 +228,259 @@
       cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
       panels.forEach((p) => { $(`.hov[data-p="${p.cls}"]`, el).innerHTML = `<circle class="mk" cx="${x(i)}" cy="${p.y0 + PH - p.data[i] / p.max * PH}" r="5" fill="var(--s${p.cls})"/>`; });
       tip.hidden = false;
-      tip.innerHTML = `<b>${off + i === TODAY_I ? "Today" : dShort(day(off + i))}${off + i === EVENT_I ? " · Double CP starts" : ""}</b>
-        <span><i class="sw s1"></i>Visitors<em>${fmt(V[i])}</em></span><span><i class="sw s2"></i>Order taps<em>${fmt(T[i])}</em></span>`;
+      tip.innerHTML = `<b>${i === K.length - 1 ? "Today" : dLong(K[i])}</b><span><i class="sw s1"></i>Visitors<em>${fmt(V[i])}</em></span><span><i class="sw s2"></i>Order taps<em>${fmt(T[i])}</em></span>`;
       tip.style.left = Math.min(Math.max(x(i) * k, 80), r.width - 80) + "px"; tip.style.top = (TOP + 30) * k + "px";
     };
     const leave = () => { tip.hidden = true; cross.setAttribute("visibility", "hidden"); $$(".hov", el).forEach((g) => (g.innerHTML = "")); };
     hit.addEventListener("mousemove", move); hit.addEventListener("touchstart", move, { passive: true }); hit.addEventListener("touchmove", move, { passive: true });
     hit.addEventListener("mouseleave", leave); hit.addEventListener("touchend", () => setTimeout(leave, 1500));
   }
-  let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => drawTrend(), 150); });
+  let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => renderOverview(), 200); });
 
-  /* ── orders inbox ── */
-  let filter = "new";
-  const ago = (t) => { const m = Math.round((NOW - t) / 60000); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)} h ago`; };
-  const flag = (c) => ({ KE: "🇰🇪", TZ: "🇹🇿" }[c] || "🌍");
-  function renderOrders(freshCode) {
-    const site = orders.filter((o) => o.src === "site");
-    const count = (st) => site.filter((o) => o.status === st).length;
-    $("#f-new").textContent = count("new"); $("#f-done").textContent = count("done"); $("#f-nosale").textContent = count("nosale");
-    const waiting = count("new");
-    $("#ord-badge").textContent = waiting || "";
-    document.title = (waiting ? `(${waiting}) ` : "") + "WGS Admin · mockup";
-    const closed = count("done") + count("nosale");
-    $("#conv").innerHTML = closed ? `Today: <b>${count("done")}</b> of ${closed} closed orders bought (${Math.round(count("done") / closed * 100)}%).` : "";
-    const list = orders.filter((o) => filter === "all" || o.status === filter);
-    $("#orders").innerHTML = list.map((o) => {
-      const p = PKGS[o.pi] || {};
-      const st = o.status === "new" ? "" : `<span class="st ${o.status}">${o.status === "done" ? "✓ Bought" : "✕ No sale"}</span>`;
+  /* ══ orders ═══════════════════════════════════════════════════════════ */
+  let filter = "new", shown = 40;
+  const flag = (c) => ({ KE: "🇰🇪", TZ: "🇹🇿", UG: "🇺🇬" }[c] || "🌍");
+  const ago = (t) => { const m = Math.round((Date.now() - new Date(t)) / 60000); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.floor(m / 60)} h ago` : `${Math.floor(m / 1440)} d ago`; };
+  function renderOrders(freshId) {
+    const site = D.orders.filter((o) => o.source === "site");
+    const c = (st) => site.filter((o) => o.status === st).length;
+    $("#f-new").textContent = c("new"); $("#f-done").textContent = c("done"); $("#f-nosale").textContent = c("nosale");
+    $("#ord-badge").textContent = c("new") || "";
+    document.title = (c("new") ? `(${c("new")}) ` : "") + "WGS Admin";
+    const todayK = dayKey(Date.now()), tod = site.filter((o) => dayKey(o.created_at) === todayK);
+    const tDone = tod.filter((o) => o.status === "done").length, tClosed = tDone + tod.filter((o) => o.status === "nosale").length;
+    $("#conv").innerHTML = tClosed ? `Today: <b>${tDone}</b> of ${tClosed} closed orders bought (${Math.round(tDone / tClosed * 100)}%).` : "";
+    const list = D.orders.filter((o) => filter === "all" || o.status === filter);
+    $("#orders").innerHTML = list.slice(0, shown).map((o) => {
+      const st = o.status === "new" ? "" : `<span class="st ${o.status}">${o.status === "done" ? "✓ Bought" : "✕ No sale"}${o.auto_closed ? " (auto)" : ""}</span>`;
       const acts = o.status === "new"
-        ? `<button class="ok" data-c="${o.code}" data-s="done" type="button">✓ Bought</button><button class="no" data-c="${o.code}" data-s="nosale" type="button">✕ No sale</button>`
-        : `${st}<button data-c="${o.code}" data-s="new" type="button">Undo</button>`;
-      return `<li class="order ${o.status === "new" ? "new" : ""} ${o.code === freshCode ? "fresh" : ""}">
-        <span class="code">#${o.src === "manual" ? "manual" : o.code.slice(4)}</span>
-        <div><h3>${esc(pkgLong(p))} · ${money(o)}</h3>
-          <p>${flag(o.cty)} ${esc(o.pay)}${o.name ? " · " + esc(o.name) : ""}${o.uid ? " · UID " + esc(o.uid) : ""} · ${o.t.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} (${ago(o.t)})</p></div>
+        ? `<button class="ok" data-id="${o.id}" data-s="done" type="button">✓ Bought</button><button class="no" data-id="${o.id}" data-s="nosale" type="button">✕ No sale</button>`
+        : `${st}<button data-id="${o.id}" data-s="new" type="button">Undo</button>`;
+      return `<li class="order ${o.status === "new" ? "new" : ""} ${o.id === freshId ? "fresh" : ""}">
+        <span class="code">${o.source === "manual" ? "manual" : "#" + esc(o.code.replace(/^WGS-/, ""))}</span>
+        <div><h3>${esc(o.item)} · ${money(o)}</h3>
+          <p>${flag(o.country)} ${esc(o.pay)}${o.name ? " · " + esc(o.name) : ""}${o.uid ? " · UID " + esc(o.uid) : ""} · ${dLong(dayKey(o.created_at))} ${hhmm(o.created_at)} (${ago(o.created_at)})</p></div>
         <div class="acts">${acts}</div></li>`;
     }).join("") || `<p class="empty">${filter === "new" ? "Nothing waiting. You're all caught up ✓" : "Nothing here yet."}</p>`;
-    $$("#orders button[data-c]").forEach((b) => b.addEventListener("click", () => {
-      const o = orders.find((x) => x.code === b.dataset.c); o.status = b.dataset.s;
-      renderOrders(); renderSales();
-      toast(o.status === "done" ? `#${o.code} marked bought. ${money(o)} added to revenue ✓` : o.status === "nosale" ? `#${o.code} marked no sale` : `#${o.code} moved back to waiting`);
-    }));
+    $("#more").hidden = list.length <= shown;
+    $$("#orders button[data-id]").forEach((b) => b.addEventListener("click", () => setStatus(b.dataset.id, b.dataset.s)));
+  }
+  $("#more").addEventListener("click", () => { shown += 40; renderOrders(); });
+  async function setStatus(id, status) {
+    const o = D.orders.find((x) => x.id === id); if (!o) return;
+    const patch = { status, closed_at: status === "new" ? null : new Date().toISOString(), auto_closed: false };
+    const { error } = await sb.from("orders").update(patch).eq("id", id);
+    if (error) return fail("update the order", error);
+    Object.assign(o, patch); renderOrders(); renderOverview();
+    toast(status === "done" ? `#${o.code} marked bought. ${money(o)} added ✓` : status === "nosale" ? `#${o.code} marked no sale` : `#${o.code} moved back to waiting`);
   }
   $$(".filters button").forEach((b) => b.addEventListener("click", () => {
-    filter = b.dataset.f; $$(".filters button").forEach((x) => x.setAttribute("aria-pressed", x === b)); renderOrders();
+    filter = b.dataset.f; shown = 40; $$(".filters button").forEach((x) => x.setAttribute("aria-pressed", x === b)); renderOrders();
   }));
 
-  /* new-order notification (the real version pushes this to his phone even when the panel is closed) */
-  function newOrder() {
-    NOW.setMinutes(NOW.getMinutes() + 3);
-    const o = makeOrder(NOW, "new"); orders.unshift(o);
-    renderOrders(o.code); renderSales();
-    if (!$('[data-panel="overview"]').hidden) renderOverview();
-    if ($("#notify").checked) {
-      $("#ping-t").textContent = `New order #${o.code}`;
-      $("#ping-d").textContent = `${pkgLong(PKGS[o.pi])} · ${money(o)} · ${o.pay}${o.name ? " · " + o.name : ""}`;
-      $("#ping").hidden = false;
-      clearTimeout(newOrder._h); newOrder._h = setTimeout(() => ($("#ping").hidden = true), 7000);
+  /* new-order alerts: sound + in-page ping + system notification */
+  let swReg = null;
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").then((r) => (swReg = r)).catch(() => {});
+  navigator.serviceWorker?.addEventListener("message", (e) => { if (e.data && e.data.open) show(e.data.open); });
+  const notifyOn = () => { try { return localStorage.getItem("wgs-notify") !== "off"; } catch (e) { return true; } };
+  $("#notify").checked = notifyOn();
+  $("#notify").addEventListener("change", async (e) => {
+    try { localStorage.setItem("wgs-notify", e.target.checked ? "on" : "off"); } catch (err) {}
+    if (e.target.checked && "Notification" in window && Notification.permission === "default") {
+      const p = await Notification.requestPermission();
+      toast(p === "granted" ? "Notifications on ✓" : "Sound and in-page alerts are on. Allow notifications in your browser for pop-ups.");
+    }
+  });
+  let actx;
+  function beep() {
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      [0, .18].forEach((t, i) => {
+        const o = actx.createOscillator(), g = actx.createGain();
+        o.frequency.value = i ? 1175 : 880; o.type = "sine";
+        g.gain.setValueAtTime(.0001, actx.currentTime + t); g.gain.exponentialRampToValueAtTime(.25, actx.currentTime + t + .02); g.gain.exponentialRampToValueAtTime(.0001, actx.currentTime + t + .16);
+        o.connect(g).connect(actx.destination); o.start(actx.currentTime + t); o.stop(actx.currentTime + t + .18);
+      });
+    } catch (e) {}
+  }
+  document.addEventListener("click", () => { try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); } catch (e) {} }, { once: true });
+  function alertNew(o) {
+    if (!notifyOn()) return;
+    beep();
+    const body = `${o.item} · ${money(o)} · ${o.pay}${o.name ? " · " + o.name : ""}`;
+    $("#ping-t").textContent = `New order #${o.code}`; $("#ping-d").textContent = body; $("#ping").hidden = false;
+    clearTimeout(alertNew._h); alertNew._h = setTimeout(() => ($("#ping").hidden = true), 9000);
+    if (document.hidden && "Notification" in window && Notification.permission === "granted") {
+      const opts = { body, icon: "../img/icon-192.png", badge: "../img/favicon.png", tag: o.id };
+      if (swReg) swReg.showNotification(`New order #${o.code}`, opts); else try { new Notification(`New order #${o.code}`, opts); } catch (e) {}
     }
   }
-  $("#sim").addEventListener("click", newOrder);
   $("#ping-x").addEventListener("click", () => ($("#ping").hidden = true));
   $("#ping-open").addEventListener("click", () => {
-    $("#ping").hidden = true; filter = "new";
-    $$(".filters button").forEach((x) => x.setAttribute("aria-pressed", x.dataset.f === "new"));
-    show("orders"); renderOrders();
+    $("#ping").hidden = true; filter = "new"; $$(".filters button").forEach((x) => x.setAttribute("aria-pressed", x.dataset.f === "new")); show("orders"); renderOrders();
   });
-  let autos = 0; const auto = () => { if (autos++ < 3) { newOrder(); setTimeout(auto, 40000); } };
-  setTimeout(auto, 6000);
 
-  /* ── manual sale + this week ── */
-  const pick = { cat: "double", pkg: 2, pay: "M-Pesa", cty: "KE" };
-  function chips(sel, items, key, after) {
-    $(sel).innerHTML = items.map(([v, label]) => `<button type="button" data-v="${v}" aria-pressed="${String(pick[key]) === String(v)}">${esc(label)}</button>`).join("");
-    $$("button", $(sel)).forEach((b) => b.addEventListener("click", () => {
-      pick[key] = key === "pkg" ? Number(b.dataset.v) : b.dataset.v;
-      $$("button", $(sel)).forEach((x) => x.setAttribute("aria-pressed", x === b));
-      (after || fillAmount)();
-    }));
+  let channel;
+  function startRealtime() {
+    if (channel) return;
+    channel = sb.channel("orders-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (p) => {
+        if (p.eventType === "INSERT") {
+          if (D.orders.some((o) => o.id === p.new.id)) return;
+          D.orders.unshift(p.new); renderOrders(p.new.id); renderOverview();
+          if (p.new.source === "site") alertNew(p.new);
+        } else if (p.eventType === "UPDATE") {
+          const o = D.orders.find((x) => x.id === p.new.id); if (o) Object.assign(o, p.new); renderOrders(); renderOverview();
+        } else if (p.eventType === "DELETE") {
+          D.orders = D.orders.filter((x) => x.id !== p.old.id); renderOrders(); renderOverview();
+        }
+      })
+      .subscribe();
   }
-  function fillAmount() { const p = PKGS[pick.pkg]; if (p) $("#l-amt").value = fmt(pick.cty === "TZ" ? p.tzs : p.kes); }
+  // Coming back to the tab (e.g. phone was locked): refresh so nothing is missed.
+  document.addEventListener("visibilitychange", async () => {
+    if (document.hidden || $("#app").hidden) return;
+    const { data } = await sb.from("orders").select("*").gte("created_at", new Date(Date.now() - 30 * 864e5).toISOString()).order("created_at", { ascending: false }).limit(2000);
+    if (data) { const before = new Set(D.orders.map((o) => o.id)); D.orders = data; renderOrders(); renderOverview(); const fresh = data.filter((o) => !before.has(o.id) && o.source === "site"); if (fresh.length) alertNew(fresh[0]); }
+  });
+
+  /* manual sale */
+  const pick = { cat: null, pkg: null, pay: "M-Pesa", cty: "KE" };
+  const pkgLabel = (p) => { const c = D.cats.find((x) => x.id === p.category) || {}; return c.named || (!p.cp && p.name) ? (p.name || "Item") : `${fmt(p.cp)}${p.bonus ? " + " + fmt(p.bonus) : ""} CP`; };
+  function chips(sel, items, key, after) {
+    $(sel).innerHTML = items.map(([v, label]) => `<button type="button" data-v="${esc(v)}" aria-pressed="${String(pick[key]) === String(v)}">${esc(label)}</button>`).join("") || '<p class="empty-note">No packages in this type yet.</p>';
+    $$("button", $(sel)).forEach((b) => b.addEventListener("click", () => { pick[key] = b.dataset.v; $$("button", $(sel)).forEach((x) => x.setAttribute("aria-pressed", x === b)); (after || fillAmount)(); }));
+  }
+  function fillAmount() { const p = D.pkgs.find((x) => x.id === pick.pkg); if (p) $("#l-amt").value = fmt(pick.cty === "TZ" ? p.tzs : p.kes); }
   function salesChips() {
-    const live = CATS.filter((c) => PKGS.some((p) => p.cat === c.id));
-    if (!live.some((c) => c.id === pick.cat)) pick.cat = live[0].id;
-    chips("#c-cat", live.map((c) => [c.id, c.label]), "cat", () => { pick.pkg = PKGS.findIndex((p) => p.cat === pick.cat); salesChips(); });
-    const inCat = PKGS.map((p, i) => [i, p]).filter(([, p]) => p.cat === pick.cat);
-    if (!inCat.some(([i]) => i === pick.pkg)) pick.pkg = inCat.length ? inCat[0][0] : -1;
-    chips("#c-pkg", inCat.map(([i, p]) => [i, pkgLabel(p)]), "pkg");
-    chips("#c-pay", ["M-Pesa", "Bank", "Apple Pay", "PayPal", "Binance"].map((x) => [x, x]), "pay");
+    const cats = D.cats.filter((c) => D.pkgs.some((p) => p.category === c.id));
+    if (!cats.some((c) => c.id === pick.cat)) pick.cat = cats.length ? cats[0].id : null;
+    chips("#c-cat", cats.map((c) => [c.id, c.label]), "cat", () => { pick.pkg = null; salesChips(); });
+    const inCat = D.pkgs.filter((p) => p.category === pick.cat);
+    if (!inCat.some((p) => p.id === pick.pkg)) pick.pkg = inCat.length ? inCat[0].id : null;
+    chips("#c-pkg", inCat.map((p) => [p.id, pkgLabel(p)]), "pkg");
+    chips("#c-pay", ["M-Pesa", "Bank transfer", "Apple Pay", "PayPal", "Binance"].map((x) => [x, x]), "pay");
     chips("#c-cty", [["KE", "🇰🇪 Kenya"], ["TZ", "🇹🇿 Tanzania"]], "cty");
     fillAmount();
   }
-  $("#log").addEventListener("submit", (e) => {
+  $("#log").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const amt = Number($("#l-amt").value.replace(/[^\d]/g, ""));
-    if (!amt || pick.pkg < 0) { $("#l-amt").focus(); return; }
-    orders.unshift({ code: "M-" + Date.now(), pi: pick.pkg, pay: pick.pay, cty: pick.cty, amt, name: $("#l-buyer").value.trim(), uid: "", t: new Date(NOW), status: "done", src: "manual" });
-    $("#l-buyer").value = "";
-    renderSales(true); renderOrders();
-    toast(`Sale logged: ${pick.cty === "TZ" ? "TSH" : "KSH"} ${fmt(amt)} ✓`);
+    const p = D.pkgs.find((x) => x.id === pick.pkg), amount = num($("#l-amt").value);
+    if (!p || !amount) { $("#l-amt").focus(); return; }
+    const row = { code: "M-" + Date.now().toString(36).slice(-5).toUpperCase(), item: pkgLabel(p), category: p.category, amount, currency: pick.cty === "TZ" ? "TZS" : "KES", pay: pick.pay, country: pick.cty, name: $("#l-buyer").value.trim(), status: "done", source: "manual", closed_at: new Date().toISOString() };
+    const { data, error } = await sb.from("orders").insert(row).select().single();
+    if (error) return fail("log the sale", error);
+    if (!D.orders.some((o) => o.id === data.id)) D.orders.unshift(data);
+    $("#l-buyer").value = ""; renderOrders(data.id); renderOverview();
+    toast(`Sale logged: ${money(data)} ✓`);
   });
 
-  function renderSales(fresh) {
-    const done = orders.filter((o) => o.status === "done");
-    $("#sales").innerHTML = done.slice(0, 12).map((o, i) => `
-      <li class="${fresh && i === 0 ? "new" : ""}">
-        <span>${esc(pkgLong(PKGS[o.pi] || {}))}${o.name ? ` · ${esc(o.name)}` : ""}</span>
-        <span class="amt">${money(o)}</span>
-        <small>${o.t.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} · ${esc(o.pay)} · ${o.src === "manual" ? "logged by hand" : "#" + o.code}</small><small style="text-align:right">${flag(o.cty)}</small>
-      </li>`).join("") || '<p class="empty">No sales yet today.</p>';
-    const s = series(), wk = sum(s.rev.slice(-7));
-    const split = [["M-Pesa", .72], ["Binance", .11], ["Bank", .08], ["PayPal", .06], ["Apple Pay", .03]];
-    $("#week").innerHTML = `
-      <div><div class="big">${mny(wk)}</div><div class="meta">${fmt(sum(s.bought.slice(-7)))} sales in the last 7 days · total at 1 KSH = ${fmt(rate)} TSH</div>${recv(sum(s.ke.slice(-7)), sum(s.tz.slice(-7)))}</div>
-      <div><p class="lbl">By payment method</p><div class="split">${split.map(([k, v]) => `<div><b>${mny(wk * v)}</b><small>${k}</small></div>`).join("")}</div></div>`;
-  }
-
-  /* ── prices (grouped by product type) ── */
+  /* ══ prices ═══════════════════════════════════════════════════════════ */
+  const dirty = new Set();
   function renderPrices() {
-    $("#ptable").innerHTML = CATS.map((c) => {
-      const rows = PKGS.map((p, i) => [i, p]).filter(([, p]) => p.cat === c.id);
-      return `<div class="pgroup ${c.live ? "" : "off"}" data-c="${c.id}">
-        <div class="pgroup-h"><h3>${esc(c.label)}${c.live ? "" : " · coming soon"}</h3>
-          <div class="tools"><label class="switch" title="Show this type on the shop page"><input type="checkbox" class="live" ${c.live ? "checked" : ""}><span></span>${c.live ? "On shop" : "Hidden"}</label>
-          <button class="btn ghost sm add" type="button">+ Add</button></div></div>
-        ${c.hint ? `<p class="hint">${esc(c.hint)}</p>` : ""}
-        <div class="ptable">${rows.map(([i, p]) => c.named ? `
-          <div class="prow pass" data-i="${i}">
-            <label>Name<input data-k="name" value="${esc(p.name)}" placeholder="${c.id === "games" ? "e.g. PS5 game key" : "e.g. Battle Pass"}"></label>
+    const cats = D.cats.slice().sort((a, b) => a.sort - b.sort);
+    $("#ptable").innerHTML = cats.map((c) => {
+      const rows = D.pkgs.filter((p) => p.category === c.id).sort((a, b) => a.sort - b.sort);
+      const row = (p) => c.named ? `
+          <div class="prow pass ${dirty.has(p.id) ? "dirty" : ""}" data-id="${p.id}">
+            <label>Name<input data-k="name" value="${esc(p.name)}" maxlength="60" placeholder="${c.id === "games" ? "e.g. PS5 game key" : "e.g. Battle Pass"}"></label>
             <label>KSH<input data-k="kes" inputmode="numeric" value="${p.kes}"></label>
             <label>TSH<input data-k="tzs" inputmode="numeric" value="${p.tzs}"></label>
-            <label class="tagc">Label<input data-k="tag" value="${esc(p.tag)}" placeholder="e.g. Best value"></label>
+            <label class="tagc">Label<input data-k="tag" value="${esc(p.tag)}" maxlength="20" placeholder="e.g. Best value"></label>
             <label class="switch" title="Show on page"><input type="checkbox" class="vis" ${p.show ? "checked" : ""}><span></span></label>
             <button class="x" type="button" aria-label="Remove">✕</button>
           </div>` : `
-          <div class="prow" data-i="${i}">
+          <div class="prow ${dirty.has(p.id) ? "dirty" : ""}" data-id="${p.id}">
             <label>CP<input data-k="cp" inputmode="numeric" value="${p.cp}"></label>
             <label>Bonus<input data-k="bonus" inputmode="numeric" value="${p.bonus}"></label>
             <label>KSH<input data-k="kes" inputmode="numeric" value="${p.kes}"></label>
             <label>TSH<input data-k="tzs" inputmode="numeric" value="${p.tzs}"></label>
-            <label class="tagc">Label<input data-k="tag" value="${esc(p.tag)}" placeholder="e.g. Best value"></label>
+            <label class="tagc">Label<input data-k="tag" value="${esc(p.tag)}" maxlength="20" placeholder="e.g. Best value"></label>
             <label class="switch" title="Show on page"><input type="checkbox" class="vis" ${p.show ? "checked" : ""}><span></span></label>
             <button class="x" type="button" aria-label="Remove">✕</button>
-          </div>`).join("") || '<p class="empty">No items yet.</p>'}</div></div>`;
+          </div>`;
+      return `<div class="pgroup ${c.live ? "" : "off"}" data-c="${esc(c.id)}">
+        <div class="pgroup-h"><h3>${esc(c.label)}${c.live ? "" : " · hidden"}</h3>
+          <div class="tools"><label class="switch" title="Show this type as a tab on the shop page"><input type="checkbox" class="live" ${c.live ? "checked" : ""}><span></span>${c.live ? "On shop" : "Hidden"}</label>
+          <button class="btn ghost sm add" type="button">+ Add</button></div></div>
+        ${c.hint ? `<p class="hint">${esc(c.hint)}</p>` : ""}
+        <div class="ptable">${rows.map(row).join("") || '<p class="empty-note">No items yet.</p>'}</div></div>`;
     }).join("");
+    $("#dirty").textContent = dirty.size ? `${dirty.size} unpublished change${dirty.size > 1 ? "s" : ""}` : "";
     $$(".pgroup").forEach((g) => {
-      const c = catOf(g.dataset.c);
-      $(".live", g).addEventListener("change", (e) => { c.live = e.target.checked; renderPrices(); toast(c.live ? `${c.label} will show on the shop page` : `${c.label} hidden from the shop page`); });
-      $(".add", g).addEventListener("click", () => {
-        PKGS.push(c.named ? { cat: c.id, name: "", kes: 0, tzs: 0, tag: "", show: true } : { cat: c.id, cp: 0, bonus: c.id === "double" ? 0 : 0, kes: 0, tzs: 0, tag: "", show: true });
-        renderPrices(); salesChips(); $(`.pgroup[data-c="${c.id}"] .prow:last-child input`).focus();
+      const c = D.cats.find((x) => x.id === g.dataset.c);
+      $(".live", g).addEventListener("change", async (e) => {
+        const { error } = await sb.from("categories").update({ live: e.target.checked }).eq("id", c.id);
+        if (error) { e.target.checked = !e.target.checked; return fail("change that", error); }
+        c.live = e.target.checked; renderPrices(); toast(c.live ? `${c.label} is now on the shop page ✓` : `${c.label} hidden from the shop page`);
+      });
+      $(".add", g).addEventListener("click", async () => {
+        const sort = Math.max(0, ...D.pkgs.filter((p) => p.category === c.id).map((p) => p.sort)) + 1;
+        const { data, error } = await sb.from("packages").insert({ category: c.id, sort, show: false }).select().single();
+        if (error) return fail("add an item", error);
+        D.pkgs.push(data); dirty.add(data.id); renderPrices(); salesChips();
+        $(`.prow[data-id="${data.id}"] input`).focus();
+        toast("New item added, hidden until you switch it on and publish");
       });
     });
     $$(".prow").forEach((row) => {
-      const p = PKGS[row.dataset.i];
+      const p = D.pkgs.find((x) => x.id === row.dataset.id);
       $$("input[data-k]", row).forEach((inp) => inp.addEventListener("input", () => {
-        const k = inp.dataset.k; p[k] = k === "tag" || k === "name" ? inp.value : Number(inp.value.replace(/[^\d]/g, "")) || 0; salesChips();
+        const k = inp.dataset.k; p[k] = k === "tag" || k === "name" ? inp.value : num(inp.value);
+        dirty.add(p.id); row.classList.add("dirty"); $("#dirty").textContent = `${dirty.size} unpublished change${dirty.size > 1 ? "s" : ""}`;
       }));
-      $(".vis", row).addEventListener("change", (e) => (p.show = e.target.checked));
-      $(".x", row).addEventListener("click", () => { p.cat = "_removed"; renderPrices(); salesChips(); toast("Removed (publish to apply)"); });
+      $(".vis", row).addEventListener("change", (e) => { p.show = e.target.checked; dirty.add(p.id); row.classList.add("dirty"); $("#dirty").textContent = `${dirty.size} unpublished change${dirty.size > 1 ? "s" : ""}`; });
+      $(".x", row).addEventListener("click", async () => {
+        if (!confirm(`Remove "${pkgLabel(p)}" from the price list?`)) return;
+        const { error } = await sb.from("packages").delete().eq("id", p.id);
+        if (error) return fail("remove it", error);
+        D.pkgs = D.pkgs.filter((x) => x.id !== p.id); dirty.delete(p.id); renderPrices(); salesChips(); toast("Removed ✓");
+      });
     });
   }
-  $("#pub-prices").addEventListener("click", () => toast("Prices published. Shop page updated ✓ (mockup)"));
+  $("#pub-prices").addEventListener("click", async () => {
+    if (!dirty.size) return toast("Nothing to publish. Prices are up to date ✓");
+    const btn = $("#pub-prices"); btn.disabled = true;
+    const now = new Date().toISOString();
+    const results = await Promise.all([...dirty].map((id) => {
+      const p = D.pkgs.find((x) => x.id === id); if (!p) return { error: null };
+      return sb.from("packages").update({ name: p.name, note: p.note, cp: p.cp, bonus: p.bonus, kes: p.kes, tzs: p.tzs, tag: p.tag, show: p.show, updated_at: now }).eq("id", id);
+    }));
+    btn.disabled = false;
+    const bad = results.find((r) => r.error);
+    if (bad) return fail("publish all prices", bad.error);
+    dirty.clear(); renderPrices(); salesChips(); toast("Prices published. Shop page updated ✓");
+  });
 
-  /* ── offer ── */
+  /* ══ offer ════════════════════════════════════════════════════════════ */
+  const toLocalInput = (iso) => { if (!iso) return ""; const d = new Date(iso); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
   function renderOffer() {
-    $("#o-pt").textContent = $("#o-title").value;
-    $("#o-pd").textContent = $("#o-detail").value;
-    const end = new Date($("#o-end").value);
-    const s = Math.max(0, Math.floor((end - NOW) / 1000));
-    $("#o-pc").textContent = isNaN(end) ? "" : `Ends in ${Math.floor(s / 86400)}d ${Math.floor(s % 86400 / 3600)}h`;
-    $("#o-prev").classList.toggle("off", !$("#o-on").checked);
+    const o = D.offer || {};
+    $("#o-title").value = o.title || ""; $("#o-detail").value = o.detail || ""; $("#o-end").value = toLocalInput(o.ends_at); $("#o-on").checked = !!o.show;
+    previewOffer();
   }
-  ["#o-title", "#o-detail", "#o-end", "#o-on"].forEach((s) => $(s).addEventListener("input", renderOffer));
-  $("#pub-offer").addEventListener("click", () => toast($("#o-on").checked ? "Offer banner is live ✓ (mockup)" : "Offer banner turned off (mockup)"));
+  function previewOffer() {
+    $("#o-pt").textContent = $("#o-title").value || "Offer title"; $("#o-pd").textContent = $("#o-detail").value;
+    const end = new Date($("#o-end").value), s = Math.max(0, Math.floor((end - Date.now()) / 1000));
+    $("#o-pc").textContent = isNaN(end) ? "" : s ? `Ends in ${Math.floor(s / 86400)}d ${Math.floor(s % 86400 / 3600)}h` : "Ended";
+    $("#o-prev").classList.toggle("off", !$("#o-on").checked);
+    $("#o-state").textContent = $("#o-on").checked ? "On" : "Off";
+  }
+  ["#o-title", "#o-detail", "#o-end", "#o-on"].forEach((s) => $(s).addEventListener("input", previewOffer));
+  $("#pub-offer").addEventListener("click", async () => {
+    const title = $("#o-title").value.trim();
+    if (!title) { $("#o-title").focus(); return toast("Give the offer a title first"); }
+    const end = $("#o-end").value ? new Date($("#o-end").value).toISOString() : null;
+    const row = { title, detail: $("#o-detail").value.trim(), ends_at: end, show: $("#o-on").checked, updated_at: new Date().toISOString() };
+    const q = D.offer ? sb.from("offers").update(row).eq("id", D.offer.id).select().single() : sb.from("offers").insert(row).select().single();
+    const { data, error } = await q;
+    if (error) return fail("publish the offer", error);
+    D.offer = data; toast(row.show ? "Offer banner is live ✓" : "Offer saved and turned off");
+  });
 
-  /* ── posts ── */
-  const posts = [
-    { kind: "drop", title: "Mythic Alias", msg: "New mythic operator drop. Stock up on CP before it lands.", date: "2026-11-19" },
-    { kind: "update", title: "Double CP season is back", msg: "All four packages are doubled until 20 Dec. Orders are open now.", date: "2026-11-17", pin: true },
-    { kind: "update", title: "Console & PC games are coming", msg: "Tap 'Notify me' on the shop page and we'll message you on launch day.", date: "2026-11-14" }
-  ];
-  let kind = "update", editing = -1;
+  /* ══ posts ════════════════════════════════════════════════════════════ */
+  let kind = "update", editing = null;
+  const todayISO = () => dayKey(Date.now());
   function setKind(k) {
     kind = k;
     $$(".seg[aria-label='Post type'] button").forEach((x) => x.setAttribute("aria-pressed", x.dataset.kind === k));
@@ -411,75 +488,117 @@
     $$(".only-drop").forEach((e) => (e.hidden = kind !== "drop"));
   }
   $$(".seg[aria-label='Post type'] button").forEach((b) => b.addEventListener("click", () => setKind(b.dataset.kind)));
-  function startEdit(i) {
-    const p = posts[i]; editing = i;
-    setKind(p.kind);
-    $("#p-title").value = p.title; $("#p-msg").value = p.msg; $("#p-date").value = p.date; $("#p-pin").checked = !!p.pin;
-    $("#p-submit").textContent = "Save changes"; $("#p-cancel").hidden = false;
-    $("#post").classList.add("editing");
-    renderPosts();
-    $("#post").scrollIntoView({ behavior: "smooth", block: "start" }); $("#p-title").focus({ preventScroll: true });
+  function startEdit(id) {
+    const p = D.posts.find((x) => x.id === id); if (!p) return;
+    editing = id; setKind(p.kind);
+    $("#p-title").value = p.title; $("#p-msg").value = p.message; $("#p-date").value = p.date; $("#p-pin").checked = !!p.pinned;
+    $("#p-submit").textContent = "Save changes"; $("#p-cancel").hidden = false; $("#post").classList.add("editing");
+    renderPosts(); $("#post").scrollIntoView({ behavior: "smooth", block: "start" }); $("#p-title").focus({ preventScroll: true });
   }
   function stopEdit() {
-    editing = -1; $("#post").reset(); $("#p-date").value = "2026-11-17"; setKind("update");
-    $("#p-submit").textContent = "Post it"; $("#p-cancel").hidden = true; $("#post").classList.remove("editing");
-    renderPosts();
+    editing = null; $("#post").reset(); $("#p-date").value = todayISO(); setKind("update");
+    $("#p-submit").textContent = "Post it"; $("#p-cancel").hidden = true; $("#post").classList.remove("editing"); renderPosts();
   }
   $("#p-cancel").addEventListener("click", stopEdit);
-  $("#p-date").value = "2026-11-17";
   function renderPosts() {
-    $("#posts").innerHTML = posts.map((p, i) => `
-      <li class="${i === editing ? "is-edit" : ""}">
-        ${p.img ? `<img src="${p.img}" alt="">` : `<span class="kind ${p.kind}">${p.kind === "drop" ? "Drop" : p.pin ? "📌 Pinned" : "Update"}</span>`}
-        <div><h3>${esc(p.title)}</h3><p>${esc(p.msg)}</p><p style="font-size:.78rem;margin-top:4px">${new Date(p.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}${p.edited ? " · edited" : ""}</p></div>
-        <div class="acts">${i === editing ? '<span class="st" style="color:var(--gold)">Editing…</span>' : `<button class="edit" data-i="${i}" type="button">Edit</button><button class="del" data-i="${i}" type="button">Delete</button>`}</div>
+    if (!$("#p-date").value) $("#p-date").value = todayISO();
+    const list = D.posts.slice().sort((a, b) => (b.pinned - a.pinned) || String(b.date).localeCompare(String(a.date)));
+    $("#posts").innerHTML = list.map((p) => `
+      <li class="${p.id === editing ? "is-edit" : ""}">
+        ${p.image_url ? `<img src="${esc(p.image_url)}" alt="">` : `<span class="kind ${p.kind}">${p.kind === "drop" ? "Drop" : p.pinned ? "📌 Pinned" : "Update"}</span>`}
+        <div><h3>${esc(p.title)}</h3><p>${esc(p.message)}</p><p style="font-size:.78rem;margin-top:4px">${p.kind === "drop" ? "Drop · " : ""}${dLong(p.date)}${p.edited ? " · edited" : ""}</p></div>
+        <div class="acts">${p.id === editing ? '<span class="st" style="color:var(--gold)">Editing…</span>' : `<button class="edit" data-id="${p.id}" type="button">Edit</button><button class="del" data-id="${p.id}" type="button">Delete</button>`}</div>
       </li>`).join("") || '<p class="empty">No posts yet.</p>';
-    $$("#posts .edit").forEach((b) => b.addEventListener("click", () => startEdit(Number(b.dataset.i))));
-    $$("#posts .del").forEach((b) => b.addEventListener("click", () => {
-      if (!confirm(`Delete "${posts[b.dataset.i].title}"? It disappears from the shop page.`)) return;
-      posts.splice(b.dataset.i, 1); renderPosts(); toast("Post deleted");
+    $$("#posts .edit").forEach((b) => b.addEventListener("click", () => startEdit(b.dataset.id)));
+    $$("#posts .del").forEach((b) => b.addEventListener("click", async () => {
+      const p = D.posts.find((x) => x.id === b.dataset.id);
+      if (!confirm(`Delete "${p.title}"? It disappears from the shop page.`)) return;
+      const { error } = await sb.from("posts").delete().eq("id", p.id);
+      if (error) return fail("delete the post", error);
+      D.posts = D.posts.filter((x) => x.id !== p.id); renderPosts(); toast("Post deleted");
     }));
   }
-  $("#post").addEventListener("submit", (e) => {
+  async function shrink(file) {   // posters: max 1200px wide JPEG, so they load fast on data bundles
+    const img = await createImageBitmap(file);
+    const s = Math.min(1, 1200 / img.width), c = document.createElement("canvas");
+    c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    return new Promise((r) => c.toBlob(r, "image/jpeg", 0.82));
+  }
+  $("#post").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const f = $("#p-img").files[0];
-    const data = { kind, title: $("#p-title").value.trim(), msg: $("#p-msg").value.trim(), date: $("#p-date").value || "2026-11-17", pin: kind === "update" && $("#p-pin").checked };
-    if (editing >= 0) {
-      const old = posts[editing];
-      posts[editing] = { ...old, ...data, img: kind === "drop" ? (f ? URL.createObjectURL(f) : old.img || "") : "", edited: true };
-      stopEdit(); toast("Changes saved. Shop page updated ✓ (mockup)");
-    } else {
-      posts.unshift({ ...data, img: kind === "drop" && f ? URL.createObjectURL(f) : "" });
-      stopEdit(); toast("Posted to the shop page ✓ (mockup)");
-    }
+    const btn = $("#p-submit"); btn.disabled = true;
+    try {
+      let image_url;
+      const f = $("#p-img").files[0];
+      if (kind === "drop" && f) {
+        const blob = await shrink(f);
+        const path = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}.jpg`;
+        const up = await sb.storage.from("posters").upload(path, blob, { contentType: "image/jpeg" });
+        if (up.error) throw up.error;
+        image_url = sb.storage.from("posters").getPublicUrl(path).data.publicUrl;
+      }
+      const row = { kind, title: $("#p-title").value.trim(), message: $("#p-msg").value.trim(), date: $("#p-date").value || todayISO(), pinned: kind === "update" && $("#p-pin").checked, updated_at: new Date().toISOString() };
+      if (image_url !== undefined) row.image_url = image_url;
+      if (kind !== "drop") row.image_url = "";
+      if (editing) {
+        row.edited = true;
+        const { data, error } = await sb.from("posts").update(row).eq("id", editing).select().single();
+        if (error) throw error;
+        Object.assign(D.posts.find((x) => x.id === editing), data); stopEdit(); toast("Changes saved. Shop page updated ✓");
+      } else {
+        const { data, error } = await sb.from("posts").insert(row).select().single();
+        if (error) throw error;
+        D.posts.unshift(data); stopEdit(); toast("Posted to the shop page ✓");
+      }
+    } catch (err) { fail("save the post", err); }
+    btn.disabled = false;
   });
 
-  /* ── reviews ── */
-  const pending = [
-    { name: "Ochieng", cty: "KE", stars: 5, msg: "Got my 16k CP in like 20 mins. Legit plug 🔥" },
-    { name: "Asha", cty: "TZ", stars: 5, msg: "Nilipata CP haraka sana. Asante WGS!" },
-    { name: "promo-bot", cty: "Other", stars: 1, msg: "Cheap CP here 👉 bit.ly/xxxx" }
-  ];
-  const live = [
-    { name: "Brian", cty: "KE", stars: 5, msg: "Paid on M-Pesa, CP landed in about 15 minutes." },
-    { name: "Kevin", cty: "KE", stars: 4, msg: "Busy during double CP so it took a bit longer, but they kept me updated." }
-  ];
+  /* ══ reviews ══════════════════════════════════════════════════════════ */
   const stars = (n) => "★".repeat(n) + `<span class="off">${"★".repeat(5 - n)}</span>`;
-  const revItem = (r, i, actions) => `
-    <li><span class="stars" aria-label="${r.stars} of 5">${stars(r.stars)}</span>
-      <div><h3>${esc(r.name)} ${flag(r.cty)}</h3><p>${esc(r.msg)}</p></div>
-      <div class="acts">${actions(i)}</div></li>`;
   function renderReviews() {
-    $("#pending").innerHTML = pending.map((r, i) => revItem(r, i, (k) => `<button class="ok" data-i="${k}" type="button">Approve</button><button class="no" data-i="${k}" type="button">Delete</button>`)).join("") || '<p class="empty">All caught up ✓</p>';
-    $("#live").innerHTML = live.map((r, i) => revItem(r, i, (k) => `<button class="no" data-i="${k}" type="button">Hide</button>`)).join("") || '<p class="empty">No reviews showing yet.</p>';
-    $("#pend-n").textContent = `(${pending.length})`; $("#live-n").textContent = `(${live.length})`;
-    $("#rev-badge").textContent = pending.length || "";
-    $$("#pending .ok").forEach((b) => b.addEventListener("click", () => { live.unshift(pending.splice(b.dataset.i, 1)[0]); renderReviews(); toast("Review approved. It's on the shop page ✓"); }));
-    $$("#pending .no").forEach((b) => b.addEventListener("click", () => { pending.splice(b.dataset.i, 1); renderReviews(); toast("Review deleted"); }));
-    $$("#live .no").forEach((b) => b.addEventListener("click", () => { pending.unshift(live.splice(b.dataset.i, 1)[0]); renderReviews(); toast("Review hidden, moved back to waiting"); }));
+    const pend = D.reviews.filter((r) => r.status === "pending"), live = D.reviews.filter((r) => r.status === "live");
+    const item = (r, acts) => `<li><span class="stars" aria-label="${r.stars} of 5">${stars(r.stars)}</span>
+      <div><h3>${esc(r.name)} ${flag(r.country)}</h3><p>${esc(r.message)}</p><p style="font-size:.78rem;margin-top:4px">${dLong(dayKey(r.created_at))}</p></div>
+      <div class="acts">${acts(r)}</div></li>`;
+    $("#pending").innerHTML = pend.map((r) => item(r, (x) => `<button class="ok" data-id="${x.id}" data-a="live" type="button">Approve</button><button class="no" data-id="${x.id}" data-a="delete" type="button">Delete</button>`)).join("") || '<p class="empty">All caught up ✓</p>';
+    $("#live").innerHTML = live.map((r) => item(r, (x) => `<button class="no" data-id="${x.id}" data-a="pending" type="button">Hide</button>`)).join("") || '<p class="empty">No reviews showing yet.</p>';
+    $("#pend-n").textContent = `(${pend.length})`; $("#live-n").textContent = `(${live.length})`;
+    $("#rev-badge").textContent = pend.length || "";
+    $$("#pending button, #live button").forEach((b) => b.addEventListener("click", async () => {
+      const r = D.reviews.find((x) => x.id === b.dataset.id), a = b.dataset.a;
+      if (a === "delete") {
+        if (!confirm(`Delete the review from ${r.name}?`)) return;
+        const { error } = await sb.from("reviews").delete().eq("id", r.id);
+        if (error) return fail("delete the review", error);
+        D.reviews = D.reviews.filter((x) => x.id !== r.id); renderReviews(); return toast("Review deleted");
+      }
+      const { error } = await sb.from("reviews").update({ status: a }).eq("id", r.id);
+      if (error) return fail("update the review", error);
+      r.status = a; renderReviews(); toast(a === "live" ? "Review approved. It's on the shop page ✓" : "Review hidden");
+    }));
   }
 
-  /* ── go ── */
-  salesChips(); renderOrders(); renderSales(); renderOverview(); renderPrices(); renderOffer(); renderPosts(); renderReviews();
-  const hash = location.hash.slice(1); if (hash && $(`[data-panel="${hash}"]`)) show(hash);
+  /* ══ settings ═════════════════════════════════════════════════════════ */
+  function renderSettings() { $$("#settings [data-s]").forEach((i) => (i.value = D.settings[i.dataset.s] || "")); }
+  $("#settings").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const now = new Date().toISOString();
+    const rows = $$("#settings [data-s]").map((i) => ({ key: i.dataset.s, value: i.value.trim(), updated_at: now }));
+    const wa = rows.find((r) => r.key === "whatsapp"); wa.value = wa.value.replace(/\D/g, "");
+    if (wa.value.length < 10) return toast("Check the WhatsApp number (e.g. 2547…)");
+    const { error } = await sb.from("settings").upsert(rows);
+    if (error) return fail("save settings", error);
+    rows.forEach((r) => (D.settings[r.key] = r.value)); $("#rate").value = rate(); renderSettings(); renderOverview(); toast("Settings saved ✓");
+  });
+  $("#pw").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const { error } = await sb.auth.updateUser({ password: $("#pw-new").value });
+    if (error) return toast(error.message);
+    $("#pw-new").value = ""; toast("Password updated ✓");
+  });
+
+  /* ══ go ═══════════════════════════════════════════════════════════════ */
+  sb.auth.getSession().then(({ data }) => boot(data.session));
 })();

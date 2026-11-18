@@ -167,6 +167,20 @@ input[type="file"] { display: block; margin-top: 6px; font-size: .85rem; color: 
 .sub-h span { color: var(--text); }
 .empty { color: var(--muted); font-size: .9rem; padding: 6px 0; }
 
+/* login */
+.login { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; }
+.login-box { width: min(380px, 100%); display: grid; gap: 4px; padding: 28px 24px; }
+.login-logo { height: 30px; width: auto; margin-bottom: 6px; }
+.login-box h1 { margin-bottom: 14px; }
+.login-box .btn { width: 100%; margin-top: 4px; }
+.linkish { border: 0; background: none; color: var(--muted); text-decoration: underline; cursor: pointer; padding: 10px 0 0; font-size: .86rem; }
+.err { margin: 6px 0 0; color: var(--red-2); font-size: .88rem; min-height: 1.2em; }
+.logo img { height: 22px; width: auto; display: block; }
+.empty-note { color: var(--muted); font-size: .88rem; margin: 6px 0; }
+.btn[disabled] { opacity: .5; pointer-events: none; }
+.pgroup .label-in { max-width: 220px; margin: 0 !important; padding: 6px 9px !important; font: 600 .95rem var(--display) !important; }
+.prow.dirty { box-shadow: inset 3px 0 var(--gold); }
+
 .ctrls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .rate { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: .82rem; color: var(--muted); }
 .rate input { display: inline-block !important; width: 58px !important; margin: 0 !important; padding: 6px 8px !important; text-align: center; font-size: .88rem !important; }

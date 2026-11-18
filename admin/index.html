@@ -3,35 +3,62 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>WGS Admin · mockup</title>
-  <meta name="robots" content="noindex">
+  <title>WGS Admin</title>
+  <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#0b0b0e">
+  <link rel="icon" href="../img/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="../img/icon-192.png">
+  <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="admin.css">
 </head>
 <body>
-  <p class="mock">Mockup · sample numbers · nothing here is saved</p>
+  <!-- LOGIN -->
+  <section class="login" id="login" hidden>
+    <form class="card login-box" id="login-form">
+      <img src="../img/logo-mark.png" alt="WGS" class="login-logo">
+      <h1>Admin</h1>
+      <label>Email<input id="l-email" type="email" autocomplete="username" required></label>
+      <label>Password<input id="l-pass" type="password" autocomplete="current-password" required></label>
+      <button class="btn red" type="submit" id="l-go">Sign in</button>
+      <button class="linkish" type="button" id="l-forgot">Forgot password?</button>
+      <p class="err" id="l-err" role="alert"></p>
+    </form>
+    <form class="card login-box" id="reset-form" hidden>
+      <img src="../img/logo-mark.png" alt="WGS" class="login-logo">
+      <h1>New password</h1>
+      <label>New password <small>(at least 10 characters)</small><input id="r-pass" type="password" autocomplete="new-password" minlength="10" required></label>
+      <button class="btn red" type="submit">Save password</button>
+      <p class="err" id="r-err" role="alert"></p>
+    </form>
+    <div class="card login-box" id="denied" hidden>
+      <h1>No access</h1>
+      <p class="lede">This account isn't an admin for WGS.</p>
+      <button class="btn ghost" type="button" id="denied-out">Sign out</button>
+    </div>
+  </section>
 
-  <div class="app">
+  <div class="app" id="app" hidden>
     <aside class="side">
-      <a class="logo" href="../" title="View the shop page"><span class="flag"></span><span class="mark">WGS</span><span class="sub">admin</span></a>
+      <a class="logo" href="../" target="_blank" rel="noopener" title="Open the shop page"><img src="../img/logo-mark.png" alt="WGS"><span class="sub">admin</span></a>
       <nav class="tabs" aria-label="Admin sections">
         <button data-tab="overview" aria-current="page"><i>◎</i><span>Overview</span></button>
         <button data-tab="orders"><i>🔔</i><span>Orders</span><b class="dot" id="ord-badge"></b></button>
         <button data-tab="shop"><i>₭</i><span>Prices</span></button>
         <button data-tab="posts"><i>✎</i><span>Posts</span></button>
-        <button data-tab="reviews"><i>★</i><span>Reviews</span><b class="dot" id="rev-badge">3</b></button>
+        <button data-tab="reviews"><i>★</i><span>Reviews</span><b class="dot" id="rev-badge"></b></button>
+        <button data-tab="settings"><i>⚙</i><span>Settings</span></button>
       </nav>
-      <a class="view" href="../" target="_blank" rel="noopener">View live page ↗</a>
+      <a class="view" href="../" target="_blank" rel="noopener">View shop page ↗</a>
     </aside>
 
     <main class="main">
       <!-- OVERVIEW -->
       <section data-panel="overview">
         <header class="top">
-          <div><p class="hi">Habari, boss 👋</p><h1>Overview</h1></div>
+          <div><p class="hi" id="hello">Habari 👋</p><h1>Overview</h1></div>
           <div class="ctrls">
             <div class="range cur" role="group" aria-label="Show money in">
               <button data-cur="KES" aria-pressed="true">KSH</button>
@@ -39,8 +66,8 @@
             </div>
             <label class="rate">1 KSH =<input id="rate" inputmode="decimal" value="20" aria-label="Tanzanian shillings per Kenyan shilling">TSH</label>
             <div class="range" role="group" aria-label="Date range">
-              <button data-range="7" aria-pressed="false">7 days</button>
-              <button data-range="14" aria-pressed="true">14 days</button>
+              <button data-range="7" aria-pressed="true">7 days</button>
+              <button data-range="14" aria-pressed="false">14 days</button>
             </div>
           </div>
         </header>
@@ -55,19 +82,16 @@
           <article><p>Order taps</p><b id="k-taps">–</b><small id="k-taps-d"></small></article>
           <article><p>Taps that bought</p><b id="k-conv">–</b><small id="k-conv-d"></small></article>
           <article class="money"><p>Revenue</p><b id="k-rev">–</b><small id="k-rev-d"></small></article>
-          <article class="group"><p>WhatsApp group</p><b>644</b><small>members</small></article>
+          <article class="group"><p>WhatsApp group</p><b id="k-group">–</b><small>members</small></article>
         </div>
 
         <article class="card wide">
-          <div class="card-h">
-            <h2>Visitors and order taps per day</h2>
-          </div>
+          <div class="card-h"><h2>Visitors and order taps per day</h2></div>
           <div class="chart" id="trend"></div>
-          <p class="foot">Double CP started 12 Nov. Visits jumped the same day.</p>
         </article>
 
         <div class="cols">
-          <article class="card"><h2>Most tapped packages</h2><div class="bars" id="b-pkg"></div></article>
+          <article class="card"><h2>Most tapped</h2><div class="bars" id="b-pkg"></div></article>
           <article class="card"><h2>Where visitors come from</h2><div class="bars" id="b-src"></div></article>
           <article class="card"><h2>Country</h2><div class="bars" id="b-cty"></div></article>
         </div>
@@ -78,10 +102,7 @@
             <b class="big" id="wait-n">–</b><p>people tapped "Notify me" on the shop page</p>
             <div class="bars" id="b-wait"></div>
           </article>
-          <article class="card">
-            <h2>Product mix this week</h2>
-            <div class="bars" id="b-mix"></div>
-          </article>
+          <article class="card"><h2>Revenue by product type</h2><div class="bars" id="b-mix"></div></article>
         </div>
 
         <article class="card daily" style="margin-top:14px">
@@ -93,6 +114,7 @@
             </table>
           </div>
         </article>
+        <p class="foot">Tip: add <b>?src=tiktok</b> or <b>?src=youtube</b> to the shop link in your bios, so visits from there are counted correctly.</p>
       </section>
 
       <!-- ORDERS -->
@@ -100,11 +122,9 @@
         <header class="top">
           <div><h1>Orders</h1><p class="lede">Every tap on "Order on WhatsApp" lands here with its code. Find the code in the chat, then mark how it ended.</p></div>
           <div class="ord-tools">
-            <label class="switch" title="Get a ping on this phone for every new order"><input type="checkbox" id="notify" checked><span></span>Notify me</label>
-            <button class="btn ghost sm" id="sim" type="button">Simulate a new order</button>
+            <label class="switch" title="Sound and a notification for every new order"><input type="checkbox" id="notify"><span></span>Notify me</label>
           </div>
         </header>
-
         <div class="seg filters" role="group" aria-label="Show orders">
           <button type="button" data-f="new" aria-pressed="true">Waiting <b id="f-new"></b></button>
           <button type="button" data-f="done" aria-pressed="false">Bought <b id="f-done"></b></button>
@@ -113,42 +133,39 @@
         </div>
         <p class="foot conv" id="conv"></p>
         <ul class="orders" id="orders"></ul>
-        <p class="foot">Taps with no reply after 24 hours move to <b>No sale</b> by themselves, so the list never piles up.</p>
+        <button class="btn ghost sm" id="more" type="button" hidden>Show more</button>
+        <p class="foot">Taps with no reply after 24 hours move to <b>No sale</b> by themselves.</p>
 
         <details class="card manual">
           <summary>Log a sale that didn't come from the site</summary>
-        <form class="log" id="log">
-          <p class="lbl">Type</p><div class="chips" id="c-cat"></div>
-          <p class="lbl">Package</p><div class="chips" id="c-pkg"></div>
-          <p class="lbl">Paid with</p><div class="chips" id="c-pay"></div>
-          <p class="lbl">Country</p><div class="chips" id="c-cty"></div>
-          <div class="row">
-            <label>Amount<input id="l-amt" inputmode="numeric" required></label>
-            <label>Buyer <small>(optional)</small><input id="l-buyer" maxlength="30" placeholder="e.g. Brian"></label>
-          </div>
-          <button class="btn red" type="submit">Log sale</button>
-        </form>
+          <form class="log" id="log">
+            <p class="lbl">Type</p><div class="chips" id="c-cat"></div>
+            <p class="lbl">Package</p><div class="chips" id="c-pkg"></div>
+            <p class="lbl">Paid with</p><div class="chips" id="c-pay"></div>
+            <p class="lbl">Country</p><div class="chips" id="c-cty"></div>
+            <div class="row">
+              <label>Amount<input id="l-amt" inputmode="numeric" required></label>
+              <label>Buyer <small>(optional)</small><input id="l-buyer" maxlength="40" placeholder="e.g. Brian"></label>
+            </div>
+            <button class="btn red" type="submit">Log sale</button>
+          </form>
         </details>
-        <div class="cols two">
-          <article class="card"><h2>This week</h2><div class="week" id="week"></div></article>
-          <article class="card"><h2>Recent sales</h2><ul class="sales" id="sales"></ul></article>
-        </div>
       </section>
 
       <!-- PRICES & OFFER -->
       <section data-panel="shop" hidden>
-        <header class="top"><div><h1>Prices &amp; offer</h1><p class="lede">Changes go live on the shop page as soon as you publish.</p></div></header>
+        <header class="top"><div><h1>Prices &amp; offer</h1><p class="lede">Edit, then publish. The shop page updates straight away.</p></div></header>
         <article class="card">
-          <div class="card-h"><h2>Price list</h2></div>
+          <div class="card-h"><h2>Price list</h2><span class="muted" id="dirty"></span></div>
           <div id="ptable"></div>
           <button class="btn red" id="pub-prices" type="button">Publish prices</button>
         </article>
         <article class="card">
-          <div class="card-h"><h2>Offer banner</h2><label class="switch"><input type="checkbox" id="o-on" checked><span></span>On</label></div>
+          <div class="card-h"><h2>Offer banner</h2><label class="switch"><input type="checkbox" id="o-on"><span></span><em id="o-state">Off</em></label></div>
           <div class="preview" id="o-prev"><span class="pulse"></span><p><b id="o-pt"></b> <span id="o-pd"></span></p><em id="o-pc"></em></div>
-          <label>Title<input id="o-title" value="Double CP is live"></label>
-          <label>Details<input id="o-detail" value="Every package comes with 100% bonus CP. Event ends 20 December."></label>
-          <label>Ends<input id="o-end" type="datetime-local" value="2026-12-20T23:59"></label>
+          <label>Title<input id="o-title" maxlength="80" placeholder="e.g. Double CP is live"></label>
+          <label>Details<input id="o-detail" maxlength="200" placeholder="e.g. Every package comes with 100% bonus CP."></label>
+          <label>Ends <small>(the banner hides itself after this)</small><input id="o-end" type="datetime-local"></label>
           <button class="btn red" id="pub-offer" type="button">Publish offer</button>
         </article>
       </section>
@@ -161,12 +178,12 @@
             <button type="button" data-kind="update" aria-pressed="true">Update</button>
             <button type="button" data-kind="drop" aria-pressed="false">Upcoming drop</button>
           </div>
-          <label>Title<input id="p-title" required maxlength="60" placeholder="e.g. Mythic Alias lands 19 Nov"></label>
-          <label>Message<textarea id="p-msg" rows="3" maxlength="300" placeholder="What should buyers know?"></textarea></label>
+          <label>Title<input id="p-title" required maxlength="80" placeholder="e.g. Mythic Alias lands 19 Nov"></label>
+          <label>Message<textarea id="p-msg" rows="3" maxlength="600" placeholder="What should buyers know?"></textarea></label>
           <div class="row">
-            <label>Date<input id="p-date" type="date"></label>
+            <label>Date<input id="p-date" type="date" required></label>
             <label class="only-update check"><input type="checkbox" id="p-pin"> Pin to top</label>
-            <label class="only-drop file" hidden>Poster<input id="p-img" type="file" accept="image/*"></label>
+            <label class="only-drop file" hidden>Poster <small>(optional)</small><input id="p-img" type="file" accept="image/*"></label>
           </div>
           <div class="form-acts">
             <button class="btn red" id="p-submit" type="submit">Post it</button>
@@ -184,6 +201,40 @@
         <h2 class="sub-h">On the shop page <span id="live-n"></span></h2>
         <ul class="revs live" id="live"></ul>
       </section>
+
+      <!-- SETTINGS -->
+      <section data-panel="settings" hidden>
+        <header class="top"><div><h1>Settings</h1><p class="lede">Shop details and links. Saved straight to the shop page.</p></div></header>
+        <form class="card" id="settings">
+          <div class="row">
+            <label>WhatsApp number <small>(orders go here, e.g. 2547…)</small><input data-s="whatsapp" inputmode="numeric" maxlength="15" required></label>
+            <label>WhatsApp catalogue link<input data-s="catalogue" type="url" placeholder="https://wa.me/c/…"></label>
+          </div>
+          <div class="row">
+            <label>YouTube link<input data-s="youtube" type="url" placeholder="https://youtube.com/@…"></label>
+            <label>TikTok link<input data-s="tiktok" type="url" placeholder="https://tiktok.com/@…"></label>
+          </div>
+          <div class="row">
+            <label>Happy buyers <small>(shown on the page)</small><input data-s="buyers" maxlength="12" placeholder="700+"></label>
+            <label>Usual delivery time<input data-s="delivery" maxlength="20" placeholder="10–30 min"></label>
+          </div>
+          <div class="row">
+            <label>WhatsApp group members<input data-s="group_members" inputmode="numeric" maxlength="8"></label>
+            <label>Exchange rate <small>(TSH per 1 KSH)</small><input data-s="rate" inputmode="decimal" maxlength="8"></label>
+          </div>
+          <button class="btn red" type="submit">Save settings</button>
+        </form>
+        <form class="card" id="pw">
+          <h2>Change my password</h2>
+          <label>New password <small>(at least 10 characters)</small><input id="pw-new" type="password" autocomplete="new-password" minlength="10" required></label>
+          <button class="btn ghost" type="submit">Update password</button>
+        </form>
+        <div class="card">
+          <h2>Signed in</h2>
+          <p class="lede" id="who"></p>
+          <button class="btn ghost" id="signout" type="button">Sign out</button>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -194,6 +245,9 @@
     <button class="x" id="ping-x" type="button" aria-label="Dismiss">✕</button>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js"></script>
+  <script src="../config.js"></script>
   <script src="admin.js"></script>
 </body>
 </html>

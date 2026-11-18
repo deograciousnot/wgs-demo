@@ -7,14 +7,17 @@
   <meta name="description" content="Top up CoD Mobile CP with WGS, trusted by 700+ players in Kenya and Tanzania. Pay with M-Pesa, bank, Apple Pay, PayPal or Binance.">
   <meta name="robots" content="noindex">  <!-- DEMO: remove when he approves going live -->
   <meta name="theme-color" content="#0b0b0e">
+  <link rel="icon" href="img/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="img/icon-192.png">
+  <meta property="og:title" content="WGS · wugunshop · Upgrade your loadout">
+  <meta property="og:description" content="CoD Mobile CP, Battle Pass and more, delivered fast in Kenya and Tanzania.">
+  <meta property="og:image" content="img/icon-512.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <p class="demo">Demo · edited from the admin panel · regular CP &amp; Battle Pass prices are samples</p>
-
   <div class="offer" id="offer" hidden>
     <div class="wrap offer-in">
       <span class="pulse" aria-hidden="true"></span>
@@ -25,9 +28,9 @@
 
   <header class="nav">
     <div class="wrap nav-in">
-      <a class="logo" href="#top" aria-label="WGS home">
-        <span class="flag" aria-hidden="true"></span>
-        <span class="mark">WGS</span><span class="sub">wugunshop</span>
+      <a class="logo" href="#top" aria-label="WGS wugunshop, home">
+        <img src="img/logo-mark.png" alt="WGS" width="103" height="26">
+        <span class="sub">wugunshop</span>
       </a>
       <nav aria-label="Main">
         <a href="#prices">Prices</a>
@@ -43,7 +46,7 @@
   <main id="top">
     <section class="hero wrap">
       <div>
-        <p class="eyebrow">CoD Mobile CP · Kenya &amp; Tanzania</p>
+        <p class="eyebrow">Upgrade your loadout · Kenya &amp; Tanzania</p>
         <h1>Top up your CP<br><span>with people you trust.</span></h1>
         <p class="lead">Pick a package, pay the way you like, and we deliver straight to your account. Real people on WhatsApp from order to delivery.</p>
         <div class="cta">
@@ -120,6 +123,7 @@
         <div class="order-r">
           <a class="btn wa big" id="send" href="#" target="_blank" rel="noopener" aria-disabled="true">Order on WhatsApp</a>
           <p class="note">🔒 We'll finish your order in the WhatsApp chat. <b>Never type your account password on any website</b>, including this one.</p>
+          <a class="cat-link" id="catalogue" href="#" target="_blank" rel="noopener" hidden>Prefer browsing? Open our WhatsApp catalogue ↗</a>
         </div>
       </div>
     </section>
@@ -137,7 +141,7 @@
     <section id="safe" class="wrap section safe">
       <div>
         <h2>How we keep your account safe</h2>
-        <p class="sub">700+ players trust us because we're careful. Here's the routine every order follows.</p>
+        <p class="sub"><span class="js-buyers">700+</span> players trust us because we're careful. Here's the routine every order follows.</p>
       </div>
       <ul class="checks">
         <li>Your details are only ever shared in our private WhatsApp chat, never on a website or in a group.</li>
@@ -172,8 +176,8 @@
         </div>
         <label class="field">Your review <textarea id="r-msg" rows="3" maxlength="300" required placeholder="How did your order go?"></textarea></label>
         <div class="row end">
-          <p class="note">Your review goes to us on WhatsApp. We post it here once we've matched it to your order.</p>
-          <button class="btn red" type="submit">Send review</button>
+          <p class="note" id="r-note">We check every review against a real order before it goes up.</p>
+          <button class="btn red" type="submit" id="r-send">Send review</button>
         </div>
       </form>
       <div class="reviews" id="reviewlist"></div>
@@ -209,7 +213,7 @@
       <h2>FAQ</h2>
       <div class="faq">
         <details><summary>How long does delivery take?</summary><p>Most orders are done within <span class="js-delivery">10–30 min</span> of payment. During big events it can take a little longer. We'll tell you in the chat.</p></details>
-        <details><summary>Is it safe?</summary><p>We've served 700+ players. Everything happens privately on WhatsApp, and we walk you through changing your password and turning on 2FA after delivery.</p></details>
+        <details><summary>Is it safe?</summary><p>We've served <span class="js-buyers">700+</span> players. Everything happens privately on WhatsApp, and we walk you through changing your password and turning on 2FA after delivery.</p></details>
         <details><summary>Why are prices different during events?</summary><p>When the game runs a double-CP event, you get twice the CP for the same price. Our list always shows the current deal and when it was last updated.</p></details>
         <details><summary>Do you deliver outside Kenya and Tanzania?</summary><p>Ask us on WhatsApp. We'll tell you straight away if we can.</p></details>
         <details><summary>What if something goes wrong?</summary><p>Message us. If we can't deliver, you get your money back.</p></details>
@@ -221,6 +225,11 @@
     </section>
   </main>
 
+  <section class="wrap follow" id="follow" hidden>
+    <img src="img/logo-full.png" alt="WGS wugunshop · Upgrade your loadout" width="206" height="92" loading="lazy">
+    <div class="socials" id="socials"></div>
+  </section>
+
   <footer class="wrap footer">
     <p>© <span id="year">2026</span> WGS · wugunshop. Not affiliated with Activision or Call of Duty.</p>
     <p>Site by Deogracious Kiprop</p>
@@ -230,6 +239,7 @@
     <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><path fill="currentColor" d="M16 3a13 13 0 0 0-11.2 19.6L3 29l6.6-1.7A13 13 0 1 0 16 3zm0 23.6c-2 0-3.9-.5-5.6-1.5l-.4-.2-3.9 1 1-3.8-.3-.4A10.6 10.6 0 1 1 16 26.6zm5.8-7.9c-.3-.2-1.9-.9-2.2-1-.3-.1-.5-.2-.7.2l-1 1.2c-.2.2-.4.2-.7.1-.3-.2-1.4-.5-2.6-1.6-1-.9-1.6-1.9-1.8-2.2-.2-.3 0-.5.1-.7l.5-.6.3-.5v-.5l-1-2.4c-.3-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.2.2 2.1 3.2 5.1 4.5 2.5 1 3 .8 3.6.7.6-.1 1.9-.8 2.1-1.5.3-.7.3-1.4.2-1.5-.1-.2-.3-.2-.6-.4z"/></svg>
   </a>
 
+  <script src="config.js"></script>
   <script src="data.js"></script>
   <script src="script.js"></script>
 </body>
