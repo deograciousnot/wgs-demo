@@ -167,6 +167,9 @@ input[type="file"] { display: block; margin-top: 6px; font-size: .85rem; color: 
 .sub-h span { color: var(--text); }
 .empty { color: var(--muted); font-size: .9rem; padding: 6px 0; }
 
+.push-note { margin: -8px 0 14px; padding: 10px 12px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); }
+.push-note.ok { border-color: rgba(37,211,102,.45); }
+
 /* login */
 .login { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; }
 .login-box { width: min(380px, 100%); display: grid; gap: 4px; padding: 28px 24px; }

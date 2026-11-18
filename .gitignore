@@ -1,0 +1,3 @@
+supabase/.env.local
+supabase/*.local.sql
+supabase/.temp/

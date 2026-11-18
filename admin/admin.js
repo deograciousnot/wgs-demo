@@ -33,6 +33,7 @@
     $("#who").textContent = session.user.email;
     await loadAll();
     startRealtime();
+    pushState();
     const hash = location.hash.slice(1); if (hash && $(`[data-panel="${hash}"]`)) show(hash);
   }
   $("#login-form").addEventListener("submit", async (e) => {
@@ -310,11 +311,60 @@
     const body = `${o.item} · ${money(o)} · ${o.pay}${o.name ? " · " + o.name : ""}`;
     $("#ping-t").textContent = `New order #${o.code}`; $("#ping-d").textContent = body; $("#ping").hidden = false;
     clearTimeout(alertNew._h); alertNew._h = setTimeout(() => ($("#ping").hidden = true), 9000);
-    if (document.hidden && "Notification" in window && Notification.permission === "granted") {
+    if (document.hidden && !pushOn && "Notification" in window && Notification.permission === "granted") {   // with phone alerts on, the push message shows it instead
       const opts = { body, icon: "../img/icon-192.png", badge: "../img/favicon.png", tag: o.id };
       if (swReg) swReg.showNotification(`New order #${o.code}`, opts); else try { new Notification(`New order #${o.code}`, opts); } catch (e) {}
     }
   }
+  /* phone alerts (web push): this device asks the database to ping it for every new order */
+  const b64 = (s) => { const r = atob((s + "=".repeat((4 - s.length % 4) % 4)).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(r, (c) => c.charCodeAt(0)); };
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  let pushOn = false;
+  function pushNote(text, ok) { const n = $("#push-note"); n.hidden = !text; n.textContent = text; n.classList.toggle("ok", !!ok); }
+  async function pushState() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+      $("#push").disabled = true;
+      pushNote(isIOS && !standalone
+        ? "On iPhone: tap Share → Add to Home Screen, open WGS Admin from your home screen, sign in, then switch on Phone alerts."
+        : "This browser can't receive phone alerts. Use Chrome on Android, or the home-screen app on iPhone.");
+      return;
+    }
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      pushOn = !!sub && Notification.permission === "granted";
+    } catch (e) { pushOn = false; }
+    $("#push").checked = pushOn;
+    pushNote(pushOn ? "Phone alerts are on for this device. New orders ping you even when the panel is closed." : "", true);
+  }
+  $("#push").addEventListener("change", async (e) => {
+    const want = e.target.checked; e.target.disabled = true;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      if (want) {
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") throw new Error("permission");
+        const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(CFG.vapidPublic) });
+        const j = sub.toJSON();
+        const device = `${/android/i.test(navigator.userAgent) ? "Android" : isIOS ? "iPhone" : "Computer"} · added ${new Date().toLocaleDateString("en-GB")}`;
+        const { error } = await sb.from("push_subscriptions").upsert({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, device }, { onConflict: "endpoint" });
+        if (error) { await sub.unsubscribe(); throw error; }
+        toast("Phone alerts on ✓");
+      } else {
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) { await sb.from("push_subscriptions").delete().eq("endpoint", sub.endpoint); await sub.unsubscribe(); }
+        toast("Phone alerts off for this device");
+      }
+    } catch (err) {
+      console.error(err);
+      toast(err && err.message === "permission"
+        ? "Notifications are blocked for this site. Allow them in your browser settings, then try again."
+        : "Couldn't change phone alerts. Try again.");
+    }
+    e.target.disabled = false; pushState();
+  });
+
   $("#ping-x").addEventListener("click", () => ($("#ping").hidden = true));
   $("#ping-open").addEventListener("click", () => {
     $("#ping").hidden = true; filter = "new"; $$(".filters button").forEach((x) => x.setAttribute("aria-pressed", x.dataset.f === "new")); show("orders"); renderOrders();

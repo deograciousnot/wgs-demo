@@ -122,9 +122,11 @@
         <header class="top">
           <div><h1>Orders</h1><p class="lede">Every tap on "Order on WhatsApp" lands here with its code. Find the code in the chat, then mark how it ended.</p></div>
           <div class="ord-tools">
-            <label class="switch" title="Sound and a notification for every new order"><input type="checkbox" id="notify"><span></span>Notify me</label>
+            <label class="switch" title="Sound and a pop-up while this page is open"><input type="checkbox" id="notify"><span></span>Sound</label>
+            <label class="switch" title="Notifications on this phone even when the panel is closed"><input type="checkbox" id="push"><span></span>Phone alerts</label>
           </div>
         </header>
+        <p class="foot push-note" id="push-note" hidden></p>
         <div class="seg filters" role="group" aria-label="Show orders">
           <button type="button" data-f="new" aria-pressed="true">Waiting <b id="f-new"></b></button>
           <button type="button" data-f="done" aria-pressed="false">Bought <b id="f-done"></b></button>
